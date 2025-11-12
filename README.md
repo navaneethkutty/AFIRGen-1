@@ -22,7 +22,7 @@ It combines **Speech-to-Text (STT)**, **Optical Character Recognition (OCR)**, *
 
 Here’s the system architecture — showing how each module connects and processes data through the pipeline:
 
-![AFIRGen Architecture](./assets/tempflowchartref.png)
+![AFIRGen Architecture](./assets/tempflowchartref.svg)
 
 ---
 
