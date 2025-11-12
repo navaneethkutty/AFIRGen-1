@@ -1,0 +1,59 @@
+/* Toast style for status messages */
+.status-message {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  padding: 0.75rem 1.25rem;
+  background: #222222cc; /* semi-transparent dark background */
+  border: 1px solid #777777;
+  border-radius: 0.5rem;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.7);
+  color: ghostwhite;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: auto;
+  max-width: 280px;
+  z-index: 9999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  margin: 0; /* remove margin: top spacing not needed in toast */
+}
+
+.status-message:not(.hidden) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Keeping distinct border colors for success and processing */
+.status-success {
+  border-color: #777777;
+  background: #222222cc;
+  color: ghostwhite;
+}
+
+.status-processing {
+  border-color: #888888;
+  background: #222222cc;
+  color: #bbbbbb;
+}
+
+/* Status content layout inside toast */
+.status-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+/* Smaller animated status dot */
+.status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: ghostwhite;
+  animation: pulse 2s infinite;
+}
