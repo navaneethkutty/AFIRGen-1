@@ -7,7 +7,7 @@ It combines **Speech-to-Text (STT)**, **Optical Character Recognition (OCR)**, *
 
 ## 🧠 Overview
 - Uses **Whisper** for speech-to-text and **Donut OCR** for image-to-text extraction.  
-- Implements a **RAG pipeline** (with IndicBERT) to pull relevant BNS sections and contextual data.  
+- Implements a **RAG pipeline** (with RAG model) to pull relevant BNS sections and contextual data.  
 - Fine-tuned **LLaMA**, **Mistral**, and other open-weight LLMs on Indian Law and Alpaca-style datasets.  
 - Integrates all components into a **modular FastAPI backend** connected to a **PostgreSQL** database.  
 
