@@ -1,0 +1,494 @@
+/**
+ * Floating Elements CSS
+ * 
+ * Provides styles for:
+ * - Floating Action Buttons (FAB)
+ * - Floating Labels
+ * - Floating Tooltips
+ * 
+ * All effects respect prefers-reduced-motion and use GPU acceleration
+ */
+
+/* ===== Floating Action Button (FAB) ===== */
+
+.fab-container {
+  position: fixed;
+  z-index: 1000;
+}
+
+.fab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border: none;
+  border-radius: 50%;
+  background-color: #007bff;
+  color: #ffffff;
+  font-size: 24px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15),
+              0 2px 6px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              background-color 0.3s ease;
+  will-change: transform, box-shadow;
+  z-index: 1001;
+}
+
+.fab:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2),
+              0 3px 8px rgba(0, 0, 0, 0.15);
+}
+
+.fab:active {
+  transform: scale(0.95);
+}
+
+.fab:focus-visible {
+  outline: 2px solid #007bff;
+  outline-offset: 4px;
+}
+
+/* FAB Positions */
+.fab-bottom-right {
+  bottom: 24px;
+  right: 24px;
+}
+
+.fab-bottom-left {
+  bottom: 24px;
+  left: 24px;
+}
+
+.fab-top-right {
+  top: 24px;
+  right: 24px;
+}
+
+.fab-top-left {
+  top: 24px;
+  left: 24px;
+}
+
+/* FAB Actions Container */
+.fab-actions {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              visibility 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fab-bottom-right .fab-actions,
+.fab-bottom-left .fab-actions {
+  bottom: 72px;
+}
+
+.fab-top-right .fab-actions,
+.fab-top-left .fab-actions {
+  top: 72px;
+}
+
+.fab-bottom-right .fab-actions,
+.fab-top-right .fab-actions {
+  right: 0;
+  align-items: flex-end;
+}
+
+.fab-bottom-left .fab-actions,
+.fab-top-left .fab-actions {
+  left: 0;
+  align-items: flex-start;
+}
+
+.fab-actions-expanded {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* FAB Action Buttons */
+.fab-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 50%;
+  background-color: #ffffff;
+  color: #333333;
+  font-size: 20px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+  transform: scale(0);
+  will-change: transform, opacity;
+}
+
+.fab-actions-expanded .fab-action {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.fab-action:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.fab-action:active {
+  transform: scale(0.9);
+}
+
+.fab-action:focus-visible {
+  outline: 2px solid #007bff;
+  outline-offset: 2px;
+}
+
+/* ===== Floating Labels ===== */
+
+.floating-label-container {
+  position: relative;
+  margin-bottom: 24px;
+}
+
+.floating-label {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666666;
+  font-size: 16px;
+  pointer-events: none;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              font-size 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.3s ease;
+  will-change: transform, font-size;
+  background-color: #ffffff;
+  padding: 0 4px;
+}
+
+.floating-label-active {
+  transform: translateY(-32px);
+  font-size: 12px;
+  color: #007bff;
+}
+
+.floating-label-focused .floating-label {
+  color: #007bff;
+}
+
+.floating-label-container input,
+.floating-label-container textarea,
+.floating-label-container select {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #cccccc;
+  border-radius: 4px;
+  font-size: 16px;
+  transition: border-color 0.3s ease,
+              box-shadow 0.3s ease;
+  background-color: #ffffff;
+}
+
+.floating-label-container input:focus,
+.floating-label-container textarea:focus,
+.floating-label-container select:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.floating-label-container textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+/* Floating label for textarea */
+.floating-label-container:has(textarea) .floating-label {
+  top: 24px;
+  transform: translateY(0);
+}
+
+.floating-label-container:has(textarea) .floating-label-active {
+  transform: translateY(-32px);
+}
+
+/* ===== Floating Tooltips ===== */
+
+.floating-tooltip {
+  position: fixed;
+  padding: 8px 12px;
+  background-color: #333333;
+  color: #ffffff;
+  font-size: 14px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              visibility 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity, transform;
+  z-index: 10000;
+  max-width: 250px;
+  word-wrap: break-word;
+}
+
+.floating-tooltip-visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Tooltip arrow */
+.floating-tooltip::before {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-style: solid;
+}
+
+/* Top tooltip arrow */
+.floating-tooltip-top::before {
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px 6px 0 6px;
+  border-color: #333333 transparent transparent transparent;
+}
+
+/* Bottom tooltip arrow */
+.floating-tooltip-bottom::before {
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 0 6px 6px 6px;
+  border-color: transparent transparent #333333 transparent;
+}
+
+/* Left tooltip arrow */
+.floating-tooltip-left::before {
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-width: 6px 0 6px 6px;
+  border-color: transparent transparent transparent #333333;
+}
+
+/* Right tooltip arrow */
+.floating-tooltip-right::before {
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-width: 6px 6px 6px 0;
+  border-color: transparent #333333 transparent transparent;
+}
+
+/* Tooltip animations */
+.floating-tooltip-top {
+  transform: translateY(4px);
+}
+
+.floating-tooltip-top.floating-tooltip-visible {
+  transform: translateY(0);
+}
+
+.floating-tooltip-bottom {
+  transform: translateY(-4px);
+}
+
+.floating-tooltip-bottom.floating-tooltip-visible {
+  transform: translateY(0);
+}
+
+.floating-tooltip-left {
+  transform: translateX(4px);
+}
+
+.floating-tooltip-left.floating-tooltip-visible {
+  transform: translateX(0);
+}
+
+.floating-tooltip-right {
+  transform: translateX(-4px);
+}
+
+.floating-tooltip-right.floating-tooltip-visible {
+  transform: translateX(0);
+}
+
+/* ===== Dark Mode Support ===== */
+
+.dark-mode .fab {
+  background-color: #0d6efd;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3),
+              0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.dark-mode .fab:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4),
+              0 3px 8px rgba(0, 0, 0, 0.3);
+}
+
+.dark-mode .fab-action {
+  background-color: #2a2a2a;
+  color: #e5e5e5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.dark-mode .fab-action:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.dark-mode .floating-label {
+  color: #999999;
+  background-color: #0a0a0a;
+}
+
+.dark-mode .floating-label-active,
+.dark-mode .floating-label-focused .floating-label {
+  color: #64b5f6;
+}
+
+.dark-mode .floating-label-container input,
+.dark-mode .floating-label-container textarea,
+.dark-mode .floating-label-container select {
+  background-color: #1a1a1a;
+  border-color: #4b4b4b;
+  color: #e5e5e5;
+}
+
+.dark-mode .floating-label-container input:focus,
+.dark-mode .floating-label-container textarea:focus,
+.dark-mode .floating-label-container select:focus {
+  border-color: #64b5f6;
+  box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.1);
+}
+
+.dark-mode .floating-tooltip {
+  background-color: #2a2a2a;
+  color: #e5e5e5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.dark-mode .floating-tooltip-top::before {
+  border-color: #2a2a2a transparent transparent transparent;
+}
+
+.dark-mode .floating-tooltip-bottom::before {
+  border-color: transparent transparent #2a2a2a transparent;
+}
+
+.dark-mode .floating-tooltip-left::before {
+  border-color: transparent transparent transparent #2a2a2a;
+}
+
+.dark-mode .floating-tooltip-right::before {
+  border-color: transparent #2a2a2a transparent transparent;
+}
+
+/* ===== Reduced Motion Support ===== */
+
+@media (prefers-reduced-motion: reduce) {
+  .fab,
+  .fab-actions,
+  .fab-action,
+  .floating-label,
+  .floating-tooltip {
+    transition: none;
+    animation: none;
+    will-change: auto;
+  }
+
+  .fab:hover,
+  .fab-action:hover {
+    transform: none;
+  }
+
+  .floating-tooltip-top,
+  .floating-tooltip-bottom,
+  .floating-tooltip-left,
+  .floating-tooltip-right {
+    transform: none;
+  }
+
+  .floating-tooltip-top.floating-tooltip-visible,
+  .floating-tooltip-bottom.floating-tooltip-visible,
+  .floating-tooltip-left.floating-tooltip-visible,
+  .floating-tooltip-right.floating-tooltip-visible {
+    transform: none;
+  }
+}
+
+/* ===== Responsive Design ===== */
+
+@media (max-width: 768px) {
+  .fab {
+    width: 48px;
+    height: 48px;
+    font-size: 20px;
+  }
+
+  .fab-bottom-right,
+  .fab-bottom-left {
+    bottom: 16px;
+  }
+
+  .fab-bottom-right {
+    right: 16px;
+  }
+
+  .fab-bottom-left {
+    left: 16px;
+  }
+
+  .fab-action {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+
+  .floating-tooltip {
+    font-size: 12px;
+    padding: 6px 10px;
+    max-width: 200px;
+  }
+}
+
+/* ===== Accessibility ===== */
+
+.fab:focus-visible,
+.fab-action:focus-visible {
+  outline: 2px solid #007bff;
+  outline-offset: 2px;
+}
+
+.dark-mode .fab:focus-visible,
+.dark-mode .fab-action:focus-visible {
+  outline-color: #64b5f6;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .fab,
+  .fab-action {
+    border: 2px solid currentColor;
+  }
+
+  .floating-tooltip {
+    border: 1px solid #ffffff;
+  }
+}

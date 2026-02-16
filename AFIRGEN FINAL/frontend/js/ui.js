@@ -179,28 +179,18 @@ function showTab(tabName) {
     tab.classList.remove('active');
   });
 
-  // Wait for fade out transition, then hide and show
+  // Wait for fade out transition, then show new tab
   setTimeout(() => {
-    document.querySelectorAll('.main-container, .tab-content').forEach(tab => {
-      tab.style.display = 'none';
-    });
-
     // Show selected tab
     const targetTab = document.getElementById(`${tabName}-tab`);
     if (targetTab) {
-      if (tabName === 'home') {
-        targetTab.style.display = 'flex';
-      } else {
-        targetTab.style.display = 'block';
-      }
-      
       // Trigger reflow to ensure transition works
       targetTab.offsetHeight;
       
       // Add active class to trigger fade in
       targetTab.classList.add('active');
     }
-  }, 300); // Match the CSS transition duration
+  }, 150); // Delay for smooth fade transition (half of 300ms transition)
 
   // Update nav items
   document.querySelectorAll('.nav-item').forEach(item => {

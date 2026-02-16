@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phase 6 Validation - Visual Effects & Animations</title>
+  <link rel="stylesheet" href="css/svg-icon-animations.css">
+  <link rel="stylesheet" href="css/svg-illustrations.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff;
+      padding: 2rem;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 2rem;
+      font-size: 2.5rem;
+    }
+
+    .test-section {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .test-section h2 {
+      margin-bottom: 1.5rem;
+      font-size: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .status-pass {
+      background: #10b981;
+      color: #fff;
+    }
+
+    .status-fail {
+      background: #ef4444;
+      color: #fff;
+    }
+
+    .status-pending {
+      background: #f59e0b;
+      color: #fff;
+    }
+
+    .test-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1rem;
+    }
+
+    .test-card {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+
+    .test-card h3 {
+      margin-bottom: 1rem;
+      font-size: 1.125rem;
+    }
+
+    .test-result {
+      margin-top: 1rem;
+      padding: 0.75rem;
+      border-radius: 8px;
+      font-size: 0.875rem;
+    }
+
+    .test-result.pass {
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid #10b981;
+    }
+
+    .test-result.fail {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid #ef4444;
+    }
+
+    .test-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .metric {
+      background: rgba(255, 255, 255, 0.05);
+      padding: 1rem;
+      border-radius: 8px;
+    }
+
+    .metric-label {
+      font-size: 0.75rem;
+      opacity: 0.8;
+      margin-bottom: 0.25rem;
+    }
+
+    .metric-value {
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .controls {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-top: 1.5rem;
+    }
+
+    button {
+      padding: 0.75rem 1.5rem;
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 0.875rem;
+      transition: all 0.2s ease;
+    }
+
+    button:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 1rem;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #10b981, #34d399);
+      transition: width 0.3s ease;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border-width: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Phase 6 Validation - Visual Effects & Animations</h1>
+
+    <!-- Overall Status -->
+    <div class="test-section">
+      <h2>Overall Status</h2>
+      <div class="test-metrics">
+        <div class="metric">
+          <div class="metric-label">Tests Passed</div>
+          <div class="metric-value" id="tests-passed">0</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Tests Failed</div>
+          <div class="metric-value" id="tests-failed">0</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Performance Score</div>
+          <div class="metric-value" id="performance-score">0</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Accessibility Score</div>
+          <div class="metric-value" id="accessibility-score">0</div>
+        </div>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <!-- SVG Icon Animations Tests -->
+    <div class="test-section">
+      <h2>
+        SVG Icon Animations
+        <span class="status-badge status-pending" id="icon-status">Pending</span>
+      </h2>
+      <div class="test-grid">
+        <div class="test-card">
+          <h3>Loading Icons</h3>
+          <div data-test="loading-icons"></div>
+          <div class="test-result" id="result-loading-icons"></div>
+        </div>
+        <div class="test-card">
+          <h3>Success Icons</h3>
+          <div data-test="success-icons"></div>
+          <div class="test-result" id="result-success-icons"></div>
+        </div>
+        <div class="test-card">
+          <h3>Error Icons</h3>
+          <div data-test="error-icons"></div>
+          <div class="test-result" id="result-error-icons"></div>
+        </div>
+        <div class="test-card">
+          <h3>Morphing Icons</h3>
+          <div data-test="morphing-icons"></div>
+          <div class="test-result" id="result-morphing-icons"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SVG Illustrations Tests -->
+    <div class="test-section">
+      <h2>
+        SVG Illustrations
+        <span class="status-badge status-pending" id="illustration-status">Pending</span>
+      </h2>
+      <div class="test-grid">
+        <div class="test-card">
+          <h3>Empty State</h3>
+          <div data-illustration="empty-state" id="test-empty-state"></div>
+          <div class="test-result" id="result-empty-state"></div>
+        </div>
+        <div class="test-card">
+          <h3>Success Illustration</h3>
+          <div data-illustration="success" id="test-success-illustration"></div>
+          <div class="test-result" id="result-success-illustration"></div>
+        </div>
+        <div class="test-card">
+          <h3>Error Illustration</h3>
+          <div data-illustration="error" id="test-error-illustration"></div>
+          <div class="test-result" id="result-error-illustration"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Performance Tests -->
+    <div class="test-section">
+      <h2>
+        Performance Optimization
+        <span class="status-badge status-pending" id="performance-status">Pending</span>
+      </h2>
+      <div class="test-grid">
+        <div class="test-card">
+          <h3>60 FPS Animations</h3>
+          <div class="test-result" id="result-fps"></div>
+        </div>
+        <div class="test-card">
+          <h3>GPU Acceleration</h3>
+          <div class="test-result" id="result-gpu"></div>
+        </div>
+        <div class="test-card">
+          <h3>Lazy Loading</h3>
+          <div class="test-result" id="result-lazy-loading"></div>
+        </div>
+        <div class="test-card">
+          <h3>Low-End Device Support</h3>
+          <div class="test-result" id="result-low-end"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Accessibility Tests -->
+    <div class="test-section">
+      <h2>
+        Accessibility
+        <span class="status-badge status-pending" id="accessibility-status">Pending</span>
+      </h2>
+      <div class="test-grid">
+        <div class="test-card">
+          <h3>Reduced Motion</h3>
+          <div class="test-result" id="result-reduced-motion"></div>
+        </div>
+        <div class="test-card">
+          <h3>Animation Toggle</h3>
+          <div class="test-result" id="result-animation-toggle"></div>
+        </div>
+        <div class="test-card">
+          <h3>Seizure Prevention</h3>
+          <div class="test-result" id="result-seizure-prevention"></div>
+        </div>
+        <div class="test-card">
+          <h3>Screen Reader Support</h3>
+          <div class="test-result" id="result-screen-reader"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cross-Browser Tests -->
+    <div class="test-section">
+      <h2>
+        Cross-Browser Compatibility
+        <span class="status-badge status-pending" id="browser-status">Pending</span>
+      </h2>
+      <div class="test-grid">
+        <div class="test-card">
+          <h3>Browser Detection</h3>
+          <div class="test-result" id="result-browser-detection"></div>
+        </div>
+        <div class="test-card">
+          <h3>Feature Support</h3>
+          <div class="test-result" id="result-feature-support"></div>
+        </div>
+        <div class="test-card">
+          <h3>Polyfills</h3>
+          <div class="test-result" id="result-polyfills"></div>
+        </div>
+        <div class="test-card">
+          <h3>Fallbacks</h3>
+          <div class="test-result" id="result-fallbacks"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="test-section">
+      <h2>Test Controls</h2>
+      <div class="controls">
+        <button onclick="runAllTests()">Run All Tests</button>
+        <button onclick="runIconTests()">Test Icons</button>
+        <button onclick="runIllustrationTests()">Test Illustrations</button>
+        <button onclick="runPerformanceTests()">Test Performance</button>
+        <button onclick="runAccessibilityTests()">Test Accessibility</button>
+        <button onclick="runBrowserTests()">Test Browser Compat</button>
+        <button onclick="exportResults()">Export Results</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/svg-icon-animations.js"></script>
+  <script src="js/svg-illustrations.js"></script>
+  <script src="js/visual-effects-optimizer.js"></script>
+  <script src="js/visual-effects-accessibility.js"></script>
+  <script src="js/cross-browser-compat.js"></script>
+  <script src="test-phase6-validation.js"></script>
+</body>
+</html>

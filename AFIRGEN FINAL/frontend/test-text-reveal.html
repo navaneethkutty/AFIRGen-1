@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Reveal Animations Test</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/themes.css">
+    <link rel="stylesheet" href="css/text-reveal.css">
+    <style>
+        body {
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .test-section {
+            margin: 4rem 0;
+            padding: 2rem;
+            border: 1px solid #333;
+            border-radius: 8px;
+        }
+        .test-title {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            color: #fff;
+        }
+        .test-description {
+            margin-bottom: 2rem;
+            color: #999;
+        }
+        .demo-box {
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+        .scroll-spacer {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1 class="test-title">Text Reveal Animations Test Page</h1>
+    <p class="test-description">
+        This page demonstrates the various text reveal animations implemented for AFIRGen.
+        Scroll down to see animations trigger as elements come into view.
+    </p>
+
+    <!-- Typewriter Effect Test -->
+    <div class="test-section">
+        <h2 class="test-title">1. Typewriter Effect</h2>
+        <p class="test-description">Hero title with typewriter animation and blinking cursor</p>
+        <div class="demo-box">
+            <h1 class="hero-title">AFIRGen - AI-Powered FIR Management</h1>
+        </div>
+    </div>
+
+    <div class="scroll-spacer">↓ Scroll down to see more animations ↓</div>
+
+    <!-- Fade-in Animation Test -->
+    <div class="test-section">
+        <h2 class="test-title">2. Fade-In on Scroll</h2>
+        <p class="test-description">Elements fade in as they enter the viewport</p>
+        <div class="demo-box">
+            <div class="step-item">
+                <h3 class="step-title">Step 1</h3>
+                <p class="step-description">Upload your complaint letter or document</p>
+            </div>
+            <div class="step-item">
+                <h3 class="step-title">Step 2</h3>
+                <p class="step-description">Optionally upload audio recordings</p>
+            </div>
+            <div class="step-item">
+                <h3 class="step-title">Step 3</h3>
+                <p class="step-description">Review and submit the generated FIR</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="scroll-spacer">↓ Keep scrolling ↓</div>
+
+    <!-- Staggered Letters Test -->
+    <div class="test-section">
+        <h2 class="test-title">3. Staggered Letter Animation</h2>
+        <p class="test-description">Letters appear one by one with a bounce effect</p>
+        <div class="demo-box">
+            <h2 class="section-title">Animated Title</h2>
+            <h3 class="member-name">Team Member Name</h3>
+            <div class="resource-category-title">Resource Category</div>
+        </div>
+    </div>
+
+    <div class="scroll-spacer">↓ More examples below ↓</div>
+
+    <!-- Combined Effects Test -->
+    <div class="test-section">
+        <h2 class="test-title">4. Combined Effects</h2>
+        <p class="test-description">Multiple animations working together</p>
+        <div class="demo-box">
+            <div class="page-section">
+                <h1 class="page-title">Page Title with Fade-In</h1>
+                <p class="page-subtitle">Subtitle appears with a slight delay</p>
+            </div>
+            <div class="team-member">
+                <h3 class="member-name">Staggered Letters</h3>
+                <p>This entire card fades in on scroll</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="scroll-spacer">↓ Final section ↓</div>
+
+    <!-- Manual Trigger Test -->
+    <div class="test-section">
+        <h2 class="test-title">5. Manual Trigger Test</h2>
+        <p class="test-description">Click buttons to manually trigger animations</p>
+        <div class="demo-box">
+            <div id="manual-test-element" style="font-size: 1.5rem; margin: 1rem 0;">
+                Test Element
+            </div>
+            <button onclick="triggerFadeIn()" style="margin: 0.5rem; padding: 0.5rem 1rem;">
+                Trigger Fade-In
+            </button>
+            <button onclick="triggerStagger()" style="margin: 0.5rem; padding: 0.5rem 1rem;">
+                Trigger Staggered Letters
+            </button>
+            <button onclick="triggerTypewriter()" style="margin: 0.5rem; padding: 0.5rem 1rem;">
+                Trigger Typewriter
+            </button>
+        </div>
+    </div>
+
+    <script src="js/text-reveal.js"></script>
+    <script>
+        // Manual trigger functions for testing
+        function triggerFadeIn() {
+            const element = document.getElementById('manual-test-element');
+            element.classList.add('text-reveal-hidden');
+            setTimeout(() => {
+                if (window.textRevealInstance) {
+                    window.textRevealInstance.triggerAnimation(element, 'fade-in');
+                }
+            }, 100);
+        }
+
+        function triggerStagger() {
+            const element = document.getElementById('manual-test-element');
+            element.textContent = 'Staggered Animation';
+            if (window.textRevealInstance) {
+                window.textRevealInstance.triggerAnimation(element, 'stagger-letters');
+            }
+        }
+
+        function triggerTypewriter() {
+            const element = document.getElementById('manual-test-element');
+            element.textContent = 'Typewriter Effect';
+            if (window.textRevealInstance) {
+                window.textRevealInstance.triggerAnimation(element, 'typewriter');
+            }
+        }
+
+        // Expose instance for manual testing
+        window.textRevealInstance = textRevealInstance;
+    </script>
+</body>
+</html>

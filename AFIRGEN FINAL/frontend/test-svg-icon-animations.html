@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SVG Icon Animations Test</title>
+  <link rel="stylesheet" href="css/svg-icon-animations.css">
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff;
+      padding: 2rem;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 3rem;
+      font-size: 2.5rem;
+    }
+
+    .test-section {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .test-section h2 {
+      margin-bottom: 1.5rem;
+      font-size: 1.5rem;
+    }
+
+    .icon-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 2rem;
+      margin-top: 1rem;
+    }
+
+    .icon-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      padding: 1.5rem;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      transition: all 0.3s ease;
+    }
+
+    .icon-item:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: translateY(-5px);
+    }
+
+    .icon-item svg {
+      width: 48px;
+      height: 48px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .icon-label {
+      font-size: 0.875rem;
+      text-align: center;
+    }
+
+    .controls {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-top: 1.5rem;
+    }
+
+    button {
+      padding: 0.75rem 1.5rem;
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 0.875rem;
+      transition: all 0.2s ease;
+    }
+
+    button:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>SVG Icon Animations Test</h1>
+
+    <!-- Loading Icons -->
+    <div class="test-section">
+      <h2>Loading Icons</h2>
+      <div class="icon-grid">
+        <div class="icon-item">
+          <svg class="icon-loading" data-icon-type="loading" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M12 2a10 10 0 0 1 10 10"></path>
+          </svg>
+          <span class="icon-label">Spinner</span>
+        </div>
+        <div class="icon-item">
+          <svg class="icon-rotate" viewBox="0 0 24 24">
+            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"></path>
+          </svg>
+          <span class="icon-label">Refresh</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Success Icons -->
+    <div class="test-section">
+      <h2>Success Icons</h2>
+      <div class="icon-grid">
+        <div class="icon-item">
+          <svg class="icon-success" data-icon-type="success" viewBox="0 0 24 24">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <span class="icon-label">Checkmark</span>
+        </div>
+        <div class="icon-item">
+          <svg class="icon-success" data-icon-type="success" viewBox="0 0 24 24">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+          </svg>
+          <span class="icon-label">Check Circle</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error Icons -->
+    <div class="test-section">
+      <h2>Error Icons</h2>
+      <div class="icon-grid">
+        <div class="icon-item">
+          <svg class="icon-error" data-icon-type="error" viewBox="0 0 24 24">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+          <span class="icon-label">Close</span>
+        </div>
+        <div class="icon-item">
+          <svg class="icon-error" data-icon-type="error" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="15" y1="9" x2="9" y2="15"></line>
+            <line x1="9" y1="9" x2="15" y2="15"></line>
+          </svg>
+          <span class="icon-label">Error Circle</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Interactive Icons -->
+    <div class="test-section">
+      <h2>Interactive Icons (Hover)</h2>
+      <div class="icon-grid">
+        <div class="icon-item">
+          <svg class="icon-interactive" viewBox="0 0 24 24">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+          <span class="icon-label">Home</span>
+        </div>
+        <div class="icon-item">
+          <svg class="icon-interactive" viewBox="0 0 24 24">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          <span class="icon-label">User</span>
+        </div>
+        <div class="icon-item">
+          <svg class="icon-interactive" viewBox="0 0 24 24">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+            <polyline points="22,6 12,13 2,6"></polyline>
+          </svg>
+          <span class="icon-label">Mail</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Animated Effects -->
+    <div class="test-section">
+      <h2>Animated Effects</h2>
+      <div class="icon-grid">
+        <div class="icon-item">
+          <svg class="icon-pulse" viewBox="0 0 24 24">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+          </svg>
+          <span class="icon-label">Pulse</span>
+        </div>
+        <div class="icon-item">
+          <svg class="icon-bounce" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+            <line x1="9" y1="9" x2="9.01" y2="9"></line>
+            <line x1="15" y1="9" x2="15.01" y2="9"></line>
+          </svg>
+          <span class="icon-label">Bounce</span>
+        </div>
+        <div class="icon-item">
+          <svg class="icon-glow" viewBox="0 0 24 24">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+          </svg>
+          <span class="icon-label">Glow</span>
+        </div>
+        <div class="icon-item">
+          <svg class="icon-swing" viewBox="0 0 24 24">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+          </svg>
+          <span class="icon-label">Swing</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="test-section">
+      <h2>Animation Controls</h2>
+      <div class="controls">
+        <button onclick="triggerAllSuccess()">Trigger Success Animations</button>
+        <button onclick="triggerAllError()">Trigger Error Animations</button>
+        <button onclick="resetAllIcons()">Reset All Icons</button>
+        <button onclick="toggleAnimations()">Toggle Animations</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/svg-icon-animations.js"></script>
+  <script>
+    function triggerAllSuccess() {
+      const successIcons = document.querySelectorAll('[data-icon-type="success"]');
+      successIcons.forEach(icon => {
+        window.svgIconAnimations.resetIcon(icon);
+        setTimeout(() => {
+          window.svgIconAnimations.animateSuccess(icon);
+        }, 50);
+      });
+    }
+
+    function triggerAllError() {
+      const errorIcons = document.querySelectorAll('[data-icon-type="error"]');
+      errorIcons.forEach(icon => {
+        window.svgIconAnimations.resetIcon(icon);
+        setTimeout(() => {
+          window.svgIconAnimations.animateError(icon);
+        }, 50);
+      });
+    }
+
+    function resetAllIcons() {
+      const allIcons = document.querySelectorAll('svg');
+      allIcons.forEach(icon => {
+        window.svgIconAnimations.resetIcon(icon);
+      });
+    }
+
+    function toggleAnimations() {
+      const allIcons = document.querySelectorAll('svg');
+      allIcons.forEach(icon => {
+        if (icon.style.animationPlayState === 'paused') {
+          icon.style.animationPlayState = 'running';
+        } else {
+          icon.style.animationPlayState = 'paused';
+        }
+      });
+    }
+
+    // Auto-trigger animations on load
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        triggerAllSuccess();
+      }, 500);
+      
+      setTimeout(() => {
+        triggerAllError();
+      }, 1500);
+    });
+  </script>
+</body>
+</html>

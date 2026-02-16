@@ -1,0 +1,279 @@
+/**
+ * SVG Icon Animations Styles
+ * Provides CSS animations for SVG icons
+ */
+
+/* Spin animation for loading icons */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Draw animation for path elements */
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Pulse animation */
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+/* Bounce animation */
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  25% {
+    transform: translateY(-10px);
+  }
+  50% {
+    transform: translateY(0);
+  }
+  75% {
+    transform: translateY(-5px);
+  }
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Scale in animation */
+@keyframes scaleIn {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Shake animation for error states */
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-5px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(5px);
+  }
+}
+
+/* Morph animation base */
+@keyframes morph {
+  0% {
+    d: path('M0 0');
+  }
+  100% {
+    d: path('M10 10');
+  }
+}
+
+/* Icon base styles */
+.icon-animated {
+  transition: all 0.3s ease-in-out;
+}
+
+.icon-animated:hover {
+  transform: scale(1.1);
+}
+
+/* Loading icon styles */
+.icon-loading {
+  animation: spin 1s linear infinite;
+}
+
+/* Success icon styles */
+.icon-success path,
+.icon-success polyline {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: draw 0.6s ease-out forwards;
+}
+
+/* Error icon styles */
+.icon-error line {
+  stroke-dasharray: 50;
+  stroke-dashoffset: 50;
+  animation: draw 0.4s ease-out forwards;
+}
+
+.icon-error {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* Pulse icon styles */
+.icon-pulse {
+  animation: pulse 1s ease-in-out infinite;
+}
+
+/* Bounce icon styles */
+.icon-bounce {
+  animation: bounce 0.6s ease-in-out;
+}
+
+/* Fade in icon styles */
+.icon-fade-in {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+/* Scale in icon styles */
+.icon-scale-in {
+  animation: scaleIn 0.4s ease-out;
+}
+
+/* Morphing icon styles */
+.icon-morph {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.icon-morph path,
+.icon-morph polyline,
+.icon-morph line,
+.icon-morph circle {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Hover effects for interactive icons */
+.icon-interactive {
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.icon-interactive:hover {
+  transform: scale(1.15);
+  filter: drop-shadow(0 0 8px currentColor);
+}
+
+.icon-interactive:active {
+  transform: scale(0.95);
+}
+
+/* Glow effect for icons */
+.icon-glow {
+  filter: drop-shadow(0 0 4px currentColor);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Rotate animation */
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.icon-rotate {
+  animation: rotate 2s linear infinite;
+}
+
+/* Flip animation */
+@keyframes flip {
+  0% {
+    transform: rotateY(0deg);
+  }
+  100% {
+    transform: rotateY(180deg);
+  }
+}
+
+.icon-flip {
+  animation: flip 0.6s ease-in-out;
+}
+
+/* Swing animation */
+@keyframes swing {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  20% {
+    transform: rotate(15deg);
+  }
+  40% {
+    transform: rotate(-10deg);
+  }
+  60% {
+    transform: rotate(5deg);
+  }
+  80% {
+    transform: rotate(-5deg);
+  }
+}
+
+.icon-swing {
+  transform-origin: top center;
+  animation: swing 1s ease-in-out;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .icon-animated,
+  .icon-loading,
+  .icon-success,
+  .icon-error,
+  .icon-pulse,
+  .icon-bounce,
+  .icon-fade-in,
+  .icon-scale-in,
+  .icon-morph,
+  .icon-interactive,
+  .icon-glow,
+  .icon-rotate,
+  .icon-flip,
+  .icon-swing {
+    animation: none !important;
+    transition: none !important;
+  }
+  
+  .icon-success path,
+  .icon-success polyline,
+  .icon-error line {
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+}
+
+/* Performance optimization */
+.icon-animated,
+.icon-loading,
+.icon-pulse,
+.icon-bounce,
+.icon-rotate,
+.icon-flip,
+.icon-swing {
+  will-change: transform;
+}
+
+.icon-morph path,
+.icon-morph polyline,
+.icon-morph line,
+.icon-morph circle {
+  will-change: d, transform;
+}

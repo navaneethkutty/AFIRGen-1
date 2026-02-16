@@ -1,0 +1,425 @@
+/**
+ * Subtle Motion Effects CSS
+ * 
+ * Provides subtle, non-distracting animations:
+ * - Gentle floating animation (vertical movement)
+ * - Breathing effect (scale pulsing)
+ * - Wave animations (ripple/wave motion)
+ * 
+ * All effects use GPU acceleration and respect prefers-reduced-motion
+ * Optimized for 60fps performance
+ */
+
+/* ===== Floating Animation ===== */
+
+@keyframes gentle-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes gentle-float-reverse {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(10px);
+  }
+}
+
+.float-gentle {
+  animation: gentle-float 3s ease-in-out infinite;
+  will-change: transform;
+}
+
+.float-gentle-reverse {
+  animation: gentle-float-reverse 3s ease-in-out infinite;
+  will-change: transform;
+}
+
+.float-gentle-slow {
+  animation: gentle-float 5s ease-in-out infinite;
+  will-change: transform;
+}
+
+.float-gentle-fast {
+  animation: gentle-float 2s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* ===== Breathing Effect ===== */
+
+@keyframes breathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+}
+
+@keyframes breathe-subtle {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+@keyframes breathe-glow {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(0, 123, 255, 0.3);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(0, 123, 255, 0.5);
+  }
+}
+
+.breathe {
+  animation: breathe 4s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.breathe-subtle {
+  animation: breathe-subtle 4s ease-in-out infinite;
+  will-change: transform;
+}
+
+.breathe-glow {
+  animation: breathe-glow 4s ease-in-out infinite;
+  will-change: transform, box-shadow;
+}
+
+.breathe-slow {
+  animation: breathe 6s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.breathe-fast {
+  animation: breathe 2s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* ===== Wave Animations ===== */
+
+@keyframes wave-horizontal {
+  0% {
+    transform: translateX(0) scaleX(1);
+  }
+  25% {
+    transform: translateX(5px) scaleX(1.02);
+  }
+  50% {
+    transform: translateX(0) scaleX(1);
+  }
+  75% {
+    transform: translateX(-5px) scaleX(0.98);
+  }
+  100% {
+    transform: translateX(0) scaleX(1);
+  }
+}
+
+@keyframes wave-vertical {
+  0% {
+    transform: translateY(0) scaleY(1);
+  }
+  25% {
+    transform: translateY(5px) scaleY(1.02);
+  }
+  50% {
+    transform: translateY(0) scaleY(1);
+  }
+  75% {
+    transform: translateY(-5px) scaleY(0.98);
+  }
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+}
+
+@keyframes wave-ripple {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+@keyframes wave-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+}
+
+.wave-horizontal {
+  animation: wave-horizontal 3s ease-in-out infinite;
+  will-change: transform;
+}
+
+.wave-vertical {
+  animation: wave-vertical 3s ease-in-out infinite;
+  will-change: transform;
+}
+
+.wave-ripple {
+  position: relative;
+  overflow: visible;
+}
+
+.wave-ripple::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  border: 2px solid currentColor;
+  border-radius: inherit;
+  transform: translate(-50%, -50%);
+  animation: wave-ripple 2s ease-out infinite;
+  will-change: transform, opacity;
+}
+
+.wave-pulse {
+  animation: wave-pulse 2s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* ===== Combined Effects ===== */
+
+.float-breathe {
+  animation: gentle-float 3s ease-in-out infinite,
+             breathe-subtle 4s ease-in-out infinite;
+  will-change: transform;
+}
+
+.float-wave {
+  animation: gentle-float 3s ease-in-out infinite,
+             wave-horizontal 3s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* ===== Staggered Animations ===== */
+
+.stagger-delay-1 {
+  animation-delay: 0.1s;
+}
+
+.stagger-delay-2 {
+  animation-delay: 0.2s;
+}
+
+.stagger-delay-3 {
+  animation-delay: 0.3s;
+}
+
+.stagger-delay-4 {
+  animation-delay: 0.4s;
+}
+
+.stagger-delay-5 {
+  animation-delay: 0.5s;
+}
+
+/* ===== Hover Enhancements ===== */
+
+.float-gentle:hover,
+.float-gentle-slow:hover,
+.float-gentle-fast:hover {
+  animation-play-state: paused;
+}
+
+.breathe:hover,
+.breathe-subtle:hover,
+.breathe-glow:hover {
+  animation-play-state: paused;
+  transform: scale(1.05);
+}
+
+.wave-horizontal:hover,
+.wave-vertical:hover {
+  animation-play-state: paused;
+}
+
+/* ===== Dark Mode Support ===== */
+
+.dark-mode .breathe-glow {
+  animation: breathe-glow-dark 4s ease-in-out infinite;
+}
+
+@keyframes breathe-glow-dark {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(100, 181, 246, 0.3);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(100, 181, 246, 0.5);
+  }
+}
+
+.dark-mode .wave-ripple::before {
+  border-color: rgba(100, 181, 246, 0.5);
+}
+
+/* ===== Reduced Motion Support ===== */
+
+@media (prefers-reduced-motion: reduce) {
+  .float-gentle,
+  .float-gentle-reverse,
+  .float-gentle-slow,
+  .float-gentle-fast,
+  .breathe,
+  .breathe-subtle,
+  .breathe-glow,
+  .breathe-slow,
+  .breathe-fast,
+  .wave-horizontal,
+  .wave-vertical,
+  .wave-pulse,
+  .float-breathe,
+  .float-wave {
+    animation: none;
+    will-change: auto;
+  }
+
+  .wave-ripple::before {
+    animation: none;
+    opacity: 0;
+  }
+
+  /* Provide subtle static effects instead */
+  .breathe:hover,
+  .breathe-subtle:hover,
+  .breathe-glow:hover {
+    transform: scale(1.02);
+    transition: transform 0.2s ease;
+  }
+}
+
+/* ===== Responsive Design ===== */
+
+@media (max-width: 768px) {
+  /* Reduce animation intensity on mobile */
+  @keyframes gentle-float {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-5px);
+    }
+  }
+
+  @keyframes breathe {
+    0%, 100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.03);
+      opacity: 0.95;
+    }
+  }
+
+  @keyframes wave-horizontal {
+    0% {
+      transform: translateX(0) scaleX(1);
+    }
+    25% {
+      transform: translateX(3px) scaleX(1.01);
+    }
+    50% {
+      transform: translateX(0) scaleX(1);
+    }
+    75% {
+      transform: translateX(-3px) scaleX(0.99);
+    }
+    100% {
+      transform: translateX(0) scaleX(1);
+    }
+  }
+}
+
+/* ===== Utility Classes ===== */
+
+.motion-safe {
+  /* Only apply motion effects when motion is safe */
+  animation-play-state: running;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-safe {
+    animation-play-state: paused;
+  }
+}
+
+.pause-on-hover:hover {
+  animation-play-state: paused;
+}
+
+.slow-motion {
+  animation-duration: 6s !important;
+}
+
+.fast-motion {
+  animation-duration: 1.5s !important;
+}
+
+/* ===== Accessibility ===== */
+
+.subtle-motion-element:focus-visible {
+  outline: 2px solid #007bff;
+  outline-offset: 4px;
+}
+
+.dark-mode .subtle-motion-element:focus-visible {
+  outline-color: #64b5f6;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .breathe-glow,
+  .wave-ripple::before {
+    animation: none;
+  }
+}
+
+/* ===== Performance Optimization ===== */
+
+/* Use GPU acceleration for all animated elements */
+.float-gentle,
+.float-gentle-reverse,
+.float-gentle-slow,
+.float-gentle-fast,
+.breathe,
+.breathe-subtle,
+.breathe-glow,
+.breathe-slow,
+.breathe-fast,
+.wave-horizontal,
+.wave-vertical,
+.wave-pulse,
+.float-breathe,
+.float-wave {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+

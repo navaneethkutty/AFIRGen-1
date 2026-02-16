@@ -145,8 +145,8 @@ function showValidationFeedback(input, valid, error) {
     }
   }
 
-  // Add icon indicator
-  addValidationIcon(input, valid);
+  // Validation icon disabled - removed tick mark
+  // addValidationIcon(input, valid);
 }
 
 /**

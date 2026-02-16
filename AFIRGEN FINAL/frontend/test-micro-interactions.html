@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Micro-Interactions Test - AFIRGen</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/themes.css">
+    <style>
+        .test-container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 2rem;
+        }
+        .test-section {
+            margin-bottom: 3rem;
+            padding: 2rem;
+            background: rgba(30, 30, 30, 0.7);
+            border: 1px solid rgba(75, 75, 75, 0.3);
+            border-radius: 16px;
+        }
+        .test-section h2 {
+            color: white;
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+        }
+        .test-section p {
+            color: rgba(200, 200, 200, 1);
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+        }
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        .test-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .test-label {
+            color: rgba(180, 180, 180, 1);
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1 style="color: white; font-size: 2.5rem; margin-bottom: 1rem; text-align: center;">
+            Micro-Interactions Test Suite
+        </h1>
+        <p style="color: rgba(200, 200, 200, 1); text-align: center; margin-bottom: 3rem;">
+            Task 24.2: Testing button hover effects, input focus effects, card hover effects, and loading animations
+        </p>
+
+        <!-- 1. Button Hover Effects -->
+        <div class="test-section">
+            <h2>1. Button Hover Effects</h2>
+            <p>Hover over buttons to see lift, shadow, and ripple effects. Click to see active state.</p>
+            <div class="test-grid">
+                <div class="test-item">
+                    <span class="test-label">Primary Button</span>
+                    <button class="generate-btn">
+                        <svg class="generate-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 5v14M5 12h14"></path>
+                        </svg>
+                        Generate FIR
+                    </button>
+                </div>
+                <div class="test-item">
+                    <span class="test-label">Secondary Button</span>
+                    <button class="btn-secondary">Cancel</button>
+                </div>
+                <div class="test-item">
+                    <span class="test-label">Copy Button</span>
+                    <button class="copy-btn">
+                        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                        Copy
+                    </button>
+                </div>
+                <div class="test-item">
+                    <span class="test-label">Nav Item</span>
+                    <button class="nav-item">Home</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Input Focus Effects -->
+        <div class="test-section">
+            <h2>2. Input Focus Effects</h2>
+            <p>Click on inputs to see glow effects, lift animation, and icon pulse.</p>
+            <div class="test-grid">
+                <div class="test-item">
+                    <span class="test-label">Search Input</span>
+                    <div class="search-container">
+                        <input type="text" placeholder="Search FIR" class="search-input">
+                        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="m21 21-4.35-4.35"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="test-item">
+                    <span class="test-label">FIR Search</span>
+                    <div class="fir-search-container">
+                        <input type="text" placeholder="Search FIR..." class="fir-search-input">
+                        <svg class="search-icon-small" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="m21 21-4.35-4.35"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="test-item">
+                    <span class="test-label">Filter Select</span>
+                    <select class="fir-filter-select">
+                        <option>All Status</option>
+                        <option>Pending</option>
+                        <option>Investigating</option>
+                        <option>Closed</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Card Hover Effects -->
+        <div class="test-section">
+            <h2>3. Card Hover Effects</h2>
+            <p>Hover over cards to see lift, scale, glow, and gradient overlay effects.</p>
+            <div class="test-grid">
+                <div class="fir-item">
+                    <span class="fir-number">FIR #2024-001</span>
+                    <span class="fir-complainant">John Doe</span>
+                    <span class="fir-status status-investigating">Investigating</span>
+                </div>
+                <div class="step-item">
+                    <h3 class="step-title">Step 1</h3>
+                    <p class="step-description">Upload your complaint letter or document.</p>
+                </div>
+                <div class="resource-category">
+                    <div class="resource-category-title">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14,2 14,8 20,8"></polyline>
+                        </svg>
+                        Resources
+                    </div>
+                    <p style="color: rgba(190, 190, 190, 1); font-size: 0.875rem;">Hover to see icon rotation</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Loading Animations -->
+        <div class="test-section">
+            <h2>4. Loading Animations</h2>
+            <p>Various loading states with spinners, pulses, and shimmer effects.</p>
+            <div class="test-grid">
+                <div class="test-item">
+                    <span class="test-label">Spinner</span>
+                    <div style="display: flex; justify-content: center; padding: 2rem;">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+                <div class="test-item">
+                    <span class="test-label">Loading Spinner</span>
+                    <div style="display: flex; justify-content: center; padding: 2rem;">
+                        <div class="loading-spinner"></div>
+                    </div>
+                </div>
+                <div class="test-item">
+                    <span class="test-label">Progress Bar</span>
+                    <div class="progress-container">
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 60%;"></div>
+                        </div>
+                        <div class="progress-text">60% Complete</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. File Upload with Drag & Drop -->
+        <div class="test-section">
+            <h2>5. File Upload Hover & Drag Effects</h2>
+            <p>Hover over file upload areas to see glow effects. Try dragging a file over them.</p>
+            <div class="test-grid">
+                <label class="file-upload-item drop-zone">
+                    <input type="file" class="file-upload-input">
+                    <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14,2 14,8 20,8"></polyline>
+                    </svg>
+                    <span>Upload Letter</span>
+                    <span class="drop-hint">or drag and drop here</span>
+                </label>
+                <label class="file-upload-item drop-zone">
+                    <input type="file" class="file-upload-input">
+                    <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                        <line x1="12" y1="19" x2="12" y2="23"></line>
+                        <line x1="8" y1="23" x2="16" y2="23"></line>
+                    </svg>
+                    <span>Upload Audio</span>
+                    <span class="drop-hint">or drag and drop here</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- 6. Toast Notification Demo -->
+        <div class="test-section">
+            <h2>6. Toast Notification Animation</h2>
+            <p>Click buttons to see toast entrance animations with bounce effect.</p>
+            <div class="test-grid">
+                <button class="btn-secondary" onclick="showTestToast('success')">Show Success Toast</button>
+                <button class="btn-secondary" onclick="showTestToast('error')">Show Error Toast</button>
+                <button class="btn-secondary" onclick="showTestToast('warning')">Show Warning Toast</button>
+                <button class="btn-secondary" onclick="showTestToast('info')">Show Info Toast</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        // Simple toast function for testing
+        function showTestToast(type) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            
+            const icons = {
+                success: '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>',
+                error: '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>',
+                warning: '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
+                info: '<svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>'
+            };
+            
+            const messages = {
+                success: 'Operation completed successfully!',
+                error: 'An error occurred. Please try again.',
+                warning: 'Warning: Please review your input.',
+                info: 'Information: This is a test notification.'
+            };
+            
+            toast.innerHTML = `
+                ${icons[type]}
+                <div class="toast-content">
+                    <div class="toast-message">${messages[type]}</div>
+                </div>
+                <svg class="toast-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" onclick="this.parentElement.remove()">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            `;
+            
+            container.appendChild(toast);
+            
+            // Trigger animation
+            setTimeout(() => toast.classList.add('toast-show'), 10);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                toast.classList.remove('toast-show');
+                toast.classList.add('toast-hide');
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
+
+        // Add drag and drop functionality for testing
+        document.querySelectorAll('.drop-zone').forEach(zone => {
+            zone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                zone.classList.add('drag-over');
+            });
+            
+            zone.addEventListener('dragleave', () => {
+                zone.classList.remove('drag-over');
+            });
+            
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('drag-over');
+                showTestToast('success');
+            });
+        });
+
+        // Add copy button animation
+        document.querySelectorAll('.copy-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                this.classList.add('copied');
+                setTimeout(() => this.classList.remove('copied'), 600);
+                showTestToast('success');
+            });
+        });
+    </script>
+</body>
+</html>

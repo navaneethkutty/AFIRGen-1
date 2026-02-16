@@ -1,206 +1,291 @@
-# AFIRGen Frontend Configuration
+# AFIRGen Frontend
+
+AI-powered FIR (First Information Report) Management System - Frontend Application
 
 ## Overview
-The AFIRGen frontend is a static HTML/CSS/JS application that can be deployed to any web server or CDN. The API endpoint is configurable via the `config.js` file.
 
-## Configuration
+AFIRGen is a modern, accessible, and performant web application that streamlines the FIR filing process using artificial intelligence. The frontend is built with vanilla JavaScript, modern CSS, and follows web standards for accessibility (WCAG 2.1 AA) and performance.
 
-### API Base URL
-The frontend connects to the backend API using the URL specified in `config.js`:
+## Features
 
-```javascript
-window.ENV = {
-    API_BASE_URL: 'http://localhost:8000',  // Change this for production
-    ENVIRONMENT: 'development',
-    ENABLE_DEBUG: true,
-};
+- **AI-Powered FIR Generation**: Upload documents or audio files to automatically generate FIRs
+- **FIR History Management**: Search, filter, and manage historical FIR records
+- **Dark Mode**: System-aware theme with manual toggle
+- **Offline Support**: Service Worker enables offline functionality
+- **PDF Export**: Generate and download FIRs as PDF documents
+- **Drag & Drop**: Intuitive file upload with drag-and-drop support
+- **Real-time Validation**: Instant feedback on form inputs
+- **Accessibility**: Full keyboard navigation and screen reader support
+- **Progressive Web App**: Installable on desktop and mobile devices
+
+## Technology Stack
+
+### Core Technologies
+- **HTML5**: Semantic markup with ARIA attributes
+- **CSS3**: Modern styling with custom properties and animations
+- **JavaScript (ES6+)**: Modular architecture with native modules
+
+### Libraries & Tools
+- **DOMPurify**: XSS protection and input sanitization
+- **jsPDF**: PDF generation
+- **Jest**: Unit testing framework
+- **Fast-Check**: Property-based testing
+- **Playwright**: End-to-end testing
+- **ESLint**: Code quality and linting
+- **Prettier**: Code formatting
+
+### Build Tools
+- **Terser**: JavaScript minification
+- **cssnano**: CSS minification
+- **html-minifier**: HTML minification
+
+## Project Structure
+
+```
+frontend/
+├── css/                    # Stylesheets
+│   ├── main.css           # Main styles
+│   ├── themes.css         # Dark mode theme
+│   ├── glassmorphism.css  # Visual effects
+│   └── ...                # Additional style modules
+├── js/                     # JavaScript modules
+│   ├── app.js             # Main application entry
+│   ├── api.js             # API client with retry logic
+│   ├── validation.js      # Input validation
+│   ├── security.js        # Security utilities
+│   ├── ui.js              # UI components
+│   ├── storage.js         # LocalStorage & IndexedDB
+│   └── ...                # Additional modules
+├── lib/                    # Third-party libraries
+│   ├── dompurify.min.js   # XSS protection
+│   └── jspdf.min.js       # PDF generation
+├── tests/                  # Test files
+│   └── critical-flows.spec.js  # E2E tests
+├── scripts/                # Utility scripts
+│   ├── accessibility-audit.js  # Accessibility checker
+│   └── performance-audit.js    # Performance analyzer
+├── dist/                   # Production build output
+├── index.html             # Main HTML file
+├── sw.js                  # Service Worker
+├── manifest.json          # PWA manifest
+└── package.json           # Dependencies and scripts
 ```
 
-## Deployment Methods
+## Setup Instructions
 
-### Method 1: Environment Variable Substitution (Recommended for Docker/AWS)
+### Prerequisites
+- Node.js 16+ and npm 8+
+- Modern web browser (Chrome, Firefox, Safari, Edge)
 
-Create a deployment script that replaces the API URL at build/deploy time:
+### Installation
 
+1. Clone the repository:
 ```bash
-#!/bin/bash
-# deploy-frontend.sh
-
-API_URL="${API_BASE_URL:-http://localhost:8000}"
-ENVIRONMENT="${ENVIRONMENT:-production}"
-
-# Replace API_BASE_URL in config.js
-sed -i "s|API_BASE_URL: '.*'|API_BASE_URL: '${API_URL}'|g" config.js
-sed -i "s|ENVIRONMENT: '.*'|ENVIRONMENT: '${ENVIRONMENT}'|g" config.js
-sed -i "s|ENABLE_DEBUG: .*,|ENABLE_DEBUG: false,|g" config.js
-
-echo "Frontend configured for ${ENVIRONMENT} with API URL: ${API_URL}"
+git clone <repository-url>
+cd AFIRGEN\ FINAL/frontend
 ```
 
-Usage:
+2. Install dependencies:
 ```bash
-export API_BASE_URL="https://api.afirgen.com"
-export ENVIRONMENT="production"
-./deploy-frontend.sh
+npm install
 ```
 
-### Method 2: Docker Volume Mount
-
-Mount a custom `config.js` file when running the container:
-
-```yaml
-# docker-compose.yml
-services:
-  frontend:
-    image: nginx:alpine
-    volumes:
-      - ./frontend:/usr/share/nginx/html
-      - ./config.production.js:/usr/share/nginx/html/config.js:ro
-    ports:
-      - "80:80"
-```
-
-Create `config.production.js`:
-```javascript
-window.ENV = {
-    API_BASE_URL: 'https://api.afirgen.com',
-    ENVIRONMENT: 'production',
-    ENABLE_DEBUG: false,
-};
-```
-
-### Method 3: Runtime Override (Advanced)
-
-Inject configuration at runtime using a separate script loaded before `config.js`:
-
-```html
-<!-- In base.html, before config.js -->
-<script>
-    window.ENV_OVERRIDE = {
-        API_BASE_URL: window.location.origin.replace('www', 'api'),
-    };
-</script>
-<script src="config.js"></script>
-```
-
-## AWS Deployment
-
-### S3 + CloudFront
-
-1. **Build and configure:**
+3. Start development server:
 ```bash
-export API_BASE_URL="https://afirgen-alb-123456.us-east-1.elb.amazonaws.com"
-sed -i "s|http://localhost:8000|${API_BASE_URL}|g" config.js
+npm start
 ```
 
-2. **Upload to S3:**
+The application will be available at `http://localhost:8080`
+
+## Build Instructions
+
+### Development Build
 ```bash
-aws s3 sync . s3://afirgen-frontend-bucket/ --exclude "*.md" --exclude ".git/*"
+npm run build:dev
 ```
 
-3. **Invalidate CloudFront cache:**
+### Production Build
 ```bash
-aws cloudfront create-invalidation --distribution-id E1234567890ABC --paths "/*"
+npm run build
 ```
 
-### ECS with Nginx
+This will:
+- Minify JavaScript files with Terser
+- Minify CSS files with cssnano
+- Minify HTML files with html-minifier
+- Generate source maps
+- Output to `dist/` directory
 
-Create a Dockerfile that configures the frontend at build time:
-
-```dockerfile
-FROM nginx:alpine
-
-# Copy frontend files
-COPY . /usr/share/nginx/html
-
-# Configure API URL from build arg
-ARG API_BASE_URL=http://localhost:8000
-RUN sed -i "s|http://localhost:8000|${API_BASE_URL}|g" /usr/share/nginx/html/config.js
-
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
-```
-
-Build with API URL:
+### Build Verification
 ```bash
-docker build --build-arg API_BASE_URL=https://api.afirgen.com -t afirgen-frontend .
+# Check bundle sizes
+npm run audit:performance
+
+# Check accessibility
+npm run audit:accessibility
 ```
 
-## Environment Variables
+## Testing
 
-| Variable | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `API_BASE_URL` | Backend API endpoint | `http://localhost:8000` | `https://api.afirgen.com` |
-| `ENVIRONMENT` | Environment name | `development` | `production`, `staging` |
-| `ENABLE_DEBUG` | Enable debug logging | `true` | `false` |
+### Unit Tests
+```bash
+# Run all unit tests
+npm test
 
-## Verification
+# Run with coverage
+npm run test:coverage
 
-After deployment, verify the configuration:
-
-1. Open browser developer console
-2. Check `window.ENV`:
-```javascript
-console.log(window.ENV);
-// Should show your production API URL
+# Watch mode
+npm run test:watch
 ```
 
-3. Test API connectivity:
-```javascript
-fetch(window.ENV.API_BASE_URL + '/health')
-    .then(r => r.json())
-    .then(console.log);
+### Property-Based Tests
+Property-based tests are included in the unit test suite and use Fast-Check to verify universal properties across many inputs.
+
+### End-to-End Tests
+```bash
+# Run E2E tests (headless)
+npm run test:e2e
+
+# Run with browser UI
+npm run test:e2e:headed
+
+# Debug mode
+npm run test:e2e:debug
+
+# View test report
+npm run test:e2e:report
 ```
 
-## Security Considerations
+### Linting
+```bash
+# Run ESLint
+npm run lint
 
-### Content Security Policy (CSP)
+# Auto-fix issues
+npm run lint:fix
 
-The `base.html` includes a CSP header that allows connections to:
-- `'self'` (same origin)
-- `http://localhost:8000` (development)
-- `https://*` (any HTTPS endpoint for production)
-
-For stricter security in production, update the CSP to only allow your specific API domain:
-
-```html
-<meta http-equiv="Content-Security-Policy" 
-      content="default-src 'self'; 
-               script-src 'self' 'unsafe-inline'; 
-               style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; 
-               font-src 'self' https://fonts.gstatic.com; 
-               connect-src 'self' https://api.afirgen.com">
+# Format code with Prettier
+npm run format
 ```
 
-### CORS Configuration
+## Deployment Instructions
 
-Ensure your backend CORS settings allow requests from your frontend domain:
+### Docker Deployment
 
-```python
-# In backend (agentv5.py)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost",
-        "https://afirgen.com",
-        "https://www.afirgen.com"
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+1. Build Docker image:
+```bash
+docker build -t afirgen-frontend .
 ```
+
+2. Run container:
+```bash
+docker run -p 80:80 afirgen-frontend
+```
+
+### Manual Deployment
+
+1. Build production bundle:
+```bash
+npm run build
+```
+
+2. Deploy `dist/` directory to web server (nginx, Apache, etc.)
+
+3. Configure server:
+   - Enable gzip compression
+   - Set cache headers for static assets
+   - Configure HTTPS
+   - Set up Content Security Policy headers
+
+### Environment Configuration
+
+Create a `.env` file for environment-specific settings:
+```
+API_BASE_URL=https://api.afirgen.com
+ENVIRONMENT=production
+```
+
+## Performance
+
+### Metrics
+- **Bundle Size**: <500KB gzipped
+- **First Contentful Paint (FCP)**: <1s
+- **Time to Interactive (TTI)**: <3s
+- **Lighthouse Score**: >90
+
+### Optimizations
+- Code splitting and lazy loading
+- Service Worker caching
+- Resource hints (preconnect, dns-prefetch)
+- Deferred script loading
+- Image optimization
+- CSS and JS minification
+
+## Accessibility
+
+### WCAG 2.1 AA Compliance
+- Semantic HTML structure
+- ARIA labels and roles
+- Keyboard navigation support
+- Focus management
+- Screen reader announcements
+- Color contrast ratios >4.5:1
+- Skip links for navigation
+
+### Testing Tools
+- axe DevTools
+- NVDA screen reader
+- VoiceOver screen reader
+- Keyboard-only navigation
+
+## Browser Support
+
+- Chrome 90+
+- Firefox 88+
+- Safari 14+
+- Edge 90+
+- Mobile browsers (iOS Safari, Chrome Mobile)
+
+## Security
+
+### Implemented Measures
+- Content Security Policy (CSP)
+- XSS protection with DOMPurify
+- Input validation and sanitization
+- HTTPS enforcement
+- Secure cookie handling
+- File type validation with magic numbers
+
+## Contributing
+
+1. Follow the existing code style
+2. Run linting before committing: `npm run lint`
+3. Write tests for new features
+4. Ensure all tests pass: `npm test`
+5. Update documentation as needed
 
 ## Troubleshooting
 
-### Issue: API requests fail with CORS error
-**Solution:** Check that backend CORS settings include your frontend domain
+### Common Issues
 
-### Issue: API requests go to localhost in production
-**Solution:** Verify `config.js` was properly updated during deployment
+**Service Worker not updating:**
+- Clear browser cache
+- Unregister service worker in DevTools
+- Hard refresh (Ctrl+Shift+R)
 
-### Issue: CSP blocks API requests
-**Solution:** Update CSP meta tag to include your API domain
+**Tests failing:**
+- Clear Jest cache: `npm run test:clear`
+- Reinstall dependencies: `rm -rf node_modules && npm install`
 
-### Issue: Changes not reflected after deployment
-**Solution:** Clear browser cache or add cache-busting query parameter to config.js
+**Build errors:**
+- Check Node.js version: `node --version`
+- Update dependencies: `npm update`
+
+## License
+
+[Your License Here]
+
+## Contact
+
+For questions or support, contact [Your Contact Info]

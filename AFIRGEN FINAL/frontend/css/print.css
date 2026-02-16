@@ -1,0 +1,397 @@
+/**
+ * Print Styles for AFIRGen
+ * Optimizes layout and appearance for printing
+ */
+
+/* Print-specific media query */
+@media print {
+  /* Reset and base styles */
+  * {
+    background: transparent !important;
+    color: #000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Page setup */
+  @page {
+    margin: 2cm;
+    size: A4 portrait;
+  }
+
+  /* Body */
+  body {
+    font-size: 12pt;
+    line-height: 1.5;
+    color: #000;
+    background: #fff;
+  }
+
+  /* Hide non-essential elements */
+  .navbar,
+  .sidebar,
+  nav,
+  .toast-container,
+  .modal-overlay,
+  .animation-toggle-btn,
+  .search-container,
+  .file-upload-container,
+  .generate-btn,
+  .action-controls,
+  .fir-history-controls,
+  .fir-pagination,
+  button:not(.print-btn),
+  .btn-secondary:not(#print-btn),
+  .status-message,
+  .particle-effect,
+  .cursor-trail,
+  .floating-action-button,
+  [data-no-print] {
+    display: none !important;
+  }
+
+  /* Show only main content */
+  .main-content {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  .main-container {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  /* Headers */
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+    page-break-inside: avoid;
+    font-weight: bold;
+    margin-top: 1em;
+    margin-bottom: 0.5em;
+  }
+
+  h1 {
+    font-size: 24pt;
+    border-bottom: 2pt solid #000;
+    padding-bottom: 0.5em;
+  }
+
+  h2 {
+    font-size: 18pt;
+  }
+
+  h3 {
+    font-size: 14pt;
+  }
+
+  /* Paragraphs */
+  p {
+    orphans: 3;
+    widows: 3;
+    margin-bottom: 0.5em;
+  }
+
+  /* Links */
+  a {
+    text-decoration: underline;
+    color: #000;
+  }
+
+  a[href]:after {
+    content: " (" attr(href) ")";
+    font-size: 90%;
+  }
+
+  a[href^="#"]:after,
+  a[href^="javascript:"]:after {
+    content: "";
+  }
+
+  /* Images */
+  img {
+    max-width: 100% !important;
+    page-break-inside: avoid;
+  }
+
+  /* Tables */
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    page-break-inside: avoid;
+  }
+
+  th, td {
+    border: 1pt solid #000;
+    padding: 0.5em;
+    text-align: left;
+  }
+
+  th {
+    background: #f0f0f0 !important;
+    font-weight: bold;
+  }
+
+  /* Lists */
+  ul, ol {
+    page-break-inside: avoid;
+  }
+
+  /* Code blocks */
+  pre, code {
+    border: 1pt solid #ccc;
+    page-break-inside: avoid;
+    font-family: 'Courier New', monospace;
+    font-size: 10pt;
+  }
+
+  pre {
+    padding: 1em;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  /* FIR Content specific styles */
+  .fir-content-display {
+    border: 2pt solid #000;
+    padding: 1em;
+    margin: 1em 0;
+    page-break-inside: avoid;
+  }
+
+  .fir-content-text {
+    font-family: 'Courier New', monospace;
+    font-size: 11pt;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  .fir-content-header {
+    border-bottom: 1pt solid #000;
+    padding-bottom: 0.5em;
+    margin-bottom: 1em;
+  }
+
+  .fir-source-info {
+    font-size: 10pt;
+    margin-bottom: 0.5em;
+  }
+
+  /* Modal content for printing */
+  .modal-content {
+    position: static !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .modal-header {
+    border-bottom: 2pt solid #000;
+    padding-bottom: 0.5em;
+    margin-bottom: 1em;
+  }
+
+  .modal-title {
+    font-size: 18pt;
+    font-weight: bold;
+  }
+
+  .modal-body {
+    padding: 0 !important;
+  }
+
+  .modal-footer {
+    border-top: 1pt solid #000;
+    padding-top: 0.5em;
+    margin-top: 1em;
+  }
+
+  .modal-timestamp {
+    font-size: 9pt;
+    color: #666 !important;
+  }
+
+  /* Page breaks */
+  .page-break {
+    page-break-before: always;
+  }
+
+  .page-break-after {
+    page-break-after: always;
+  }
+
+  .no-page-break {
+    page-break-inside: avoid;
+  }
+
+  /* Steps grid */
+  .steps-grid {
+    display: block !important;
+  }
+
+  .step-item {
+    page-break-inside: avoid;
+    margin-bottom: 1em;
+    border: 1pt solid #ccc;
+    padding: 0.5em;
+  }
+
+  .step-title {
+    font-weight: bold;
+    font-size: 12pt;
+  }
+
+  /* Team section */
+  .team-section {
+    page-break-inside: avoid;
+  }
+
+  .team-member {
+    page-break-inside: avoid;
+    margin-bottom: 1em;
+    border-bottom: 1pt solid #ccc;
+    padding-bottom: 0.5em;
+  }
+
+  .member-name {
+    font-weight: bold;
+    font-size: 12pt;
+  }
+
+  .member-role {
+    font-style: italic;
+    font-size: 10pt;
+  }
+
+  /* Resources grid */
+  .resources-grid {
+    display: block !important;
+  }
+
+  .resource-category {
+    page-break-inside: avoid;
+    margin-bottom: 1em;
+  }
+
+  .resource-category-title {
+    font-weight: bold;
+    font-size: 12pt;
+    border-bottom: 1pt solid #000;
+    padding-bottom: 0.25em;
+    margin-bottom: 0.5em;
+  }
+
+  .resource-item {
+    margin-left: 1em;
+    margin-bottom: 0.25em;
+  }
+
+  /* Print header */
+  .print-header {
+    display: block !important;
+    text-align: center;
+    margin-bottom: 2em;
+    border-bottom: 2pt solid #000;
+    padding-bottom: 1em;
+  }
+
+  .print-header h1 {
+    margin: 0;
+    font-size: 24pt;
+  }
+
+  .print-header .print-date {
+    font-size: 10pt;
+    color: #666 !important;
+  }
+
+  /* Print footer */
+  .print-footer {
+    display: block !important;
+    text-align: center;
+    margin-top: 2em;
+    border-top: 1pt solid #000;
+    padding-top: 0.5em;
+    font-size: 9pt;
+    color: #666 !important;
+  }
+
+  /* Ensure proper spacing */
+  section {
+    margin-bottom: 2em;
+  }
+
+  /* Remove animations and transitions */
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  /* Remove shadows and effects */
+  .glassmorphism,
+  .blur-effect,
+  .glow-effect {
+    backdrop-filter: none !important;
+    filter: none !important;
+  }
+
+  /* Optimize for black and white printing */
+  @media print and (monochrome) {
+    * {
+      color: #000 !important;
+      background: #fff !important;
+    }
+
+    .fir-content-display {
+      border: 2pt solid #000 !important;
+    }
+  }
+
+  /* Page numbering */
+  @page {
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-size: 9pt;
+    }
+  }
+
+  /* Avoid breaking inside these elements */
+  blockquote,
+  figure,
+  .card,
+  .box {
+    page-break-inside: avoid;
+  }
+
+  /* Print-specific utilities */
+  .print-only {
+    display: block !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  /* Ensure readability */
+  body {
+    font-family: 'Times New Roman', Times, serif;
+  }
+
+  code, pre {
+    font-family: 'Courier New', Courier, monospace;
+  }
+}
+
+/* Print preview styles (when not actually printing) */
+@media screen {
+  .print-only {
+    display: none;
+  }
+}

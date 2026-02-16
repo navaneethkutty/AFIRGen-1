@@ -1,0 +1,924 @@
+/**
+ * Loading Animations CSS
+ * Custom animated spinners, skeleton screens, progress bars, and success/error animations
+ */
+
+/* ============================================
+   1. CUSTOM ANIMATED SPINNERS
+   ============================================ */
+
+/* Default spinner (already exists, enhanced version) */
+.spinner-default {
+    width: 3rem;
+    height: 3rem;
+    border: 3px solid rgba(255, 255, 255, 0.2);
+    border-top: 3px solid white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+/* Dual ring spinner */
+.spinner-dual-ring {
+    width: 3rem;
+    height: 3rem;
+    position: relative;
+}
+
+.spinner-dual-ring::after {
+    content: '';
+    display: block;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, 0.2);
+    border-top-color: white;
+    animation: spin 0.8s linear infinite;
+}
+
+/* Dots spinner */
+.spinner-dots {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: center;
+}
+
+.spinner-dots .dot {
+    width: 0.75rem;
+    height: 0.75rem;
+    background: white;
+    border-radius: 50%;
+    animation: dotBounce 1.4s infinite ease-in-out both;
+}
+
+.spinner-dots .dot:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.spinner-dots .dot:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+@keyframes dotBounce {
+    0%, 80%, 100% {
+        transform: scale(0);
+        opacity: 0.5;
+    }
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Pulse spinner */
+.spinner-pulse {
+    width: 3rem;
+    height: 3rem;
+    background: white;
+    border-radius: 50%;
+    animation: pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.5;
+        transform: scale(0.8);
+    }
+}
+
+/* Ripple spinner */
+.spinner-ripple {
+    width: 3rem;
+    height: 3rem;
+    position: relative;
+}
+
+.spinner-ripple .ripple {
+    position: absolute;
+    border: 3px solid white;
+    opacity: 1;
+    border-radius: 50%;
+    animation: ripple 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+}
+
+.spinner-ripple .ripple:nth-child(2) {
+    animation-delay: -0.5s;
+}
+
+@keyframes ripple {
+    0% {
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+    100% {
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        transform: translate(0, 0);
+    }
+}
+
+/* Bars spinner */
+.spinner-bars {
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+    justify-content: center;
+    height: 3rem;
+}
+
+.spinner-bars .bar {
+    width: 0.25rem;
+    height: 1.5rem;
+    background: white;
+    border-radius: 2px;
+    animation: barStretch 1.2s ease-in-out infinite;
+}
+
+.spinner-bars .bar:nth-child(1) {
+    animation-delay: -0.4s;
+}
+
+.spinner-bars .bar:nth-child(2) {
+    animation-delay: -0.3s;
+}
+
+.spinner-bars .bar:nth-child(3) {
+    animation-delay: -0.2s;
+}
+
+.spinner-bars .bar:nth-child(4) {
+    animation-delay: -0.1s;
+}
+
+@keyframes barStretch {
+    0%, 40%, 100% {
+        transform: scaleY(0.4);
+    }
+    20% {
+        transform: scaleY(1);
+    }
+}
+
+/* Circular progress spinner */
+.spinner-circular {
+    width: 3rem;
+    height: 3rem;
+    position: relative;
+}
+
+.spinner-circular svg {
+    width: 100%;
+    height: 100%;
+    animation: rotate 2s linear infinite;
+}
+
+.spinner-circular circle {
+    fill: none;
+    stroke: white;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-dasharray: 150, 200;
+    stroke-dashoffset: -10;
+    animation: dash 1.5s ease-in-out infinite;
+}
+
+@keyframes rotate {
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes dash {
+    0% {
+        stroke-dasharray: 1, 200;
+        stroke-dashoffset: 0;
+    }
+    50% {
+        stroke-dasharray: 100, 200;
+        stroke-dashoffset: -35;
+    }
+    100% {
+        stroke-dasharray: 100, 200;
+        stroke-dashoffset: -125;
+    }
+}
+
+/* Base spin animation */
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ============================================
+   2. SKELETON SCREENS WITH SHIMMER
+   ============================================ */
+
+/* Base skeleton */
+.skeleton {
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.05) 0%,
+        rgba(255, 255, 255, 0.1) 50%,
+        rgba(255, 255, 255, 0.05) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    border-radius: 4px;
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+/* Skeleton variants */
+.skeleton-text {
+    height: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.skeleton-text.skeleton-text-lg {
+    height: 1.5rem;
+}
+
+.skeleton-text.skeleton-text-sm {
+    height: 0.75rem;
+}
+
+.skeleton-title {
+    height: 2rem;
+    width: 60%;
+    margin-bottom: 1rem;
+}
+
+.skeleton-paragraph {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.skeleton-paragraph .skeleton-text:last-child {
+    width: 80%;
+}
+
+.skeleton-avatar {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+}
+
+.skeleton-avatar.skeleton-avatar-lg {
+    width: 5rem;
+    height: 5rem;
+}
+
+.skeleton-avatar.skeleton-avatar-sm {
+    width: 2rem;
+    height: 2rem;
+}
+
+.skeleton-card {
+    padding: 1.5rem;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.skeleton-card-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.skeleton-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.skeleton-button {
+    height: 2.5rem;
+    width: 8rem;
+    border-radius: 6px;
+}
+
+.skeleton-input {
+    height: 2.5rem;
+    border-radius: 6px;
+}
+
+/* FIR list skeleton */
+.skeleton-fir-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.skeleton-fir-item {
+    padding: 1rem;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.skeleton-fir-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.skeleton-fir-number {
+    width: 6rem;
+    height: 1.25rem;
+}
+
+.skeleton-fir-status {
+    width: 4rem;
+    height: 1.5rem;
+    border-radius: 12px;
+}
+
+.skeleton-fir-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* ============================================
+   3. PROGRESS BAR ANIMATIONS
+   ============================================ */
+
+/* Enhanced progress bar */
+.progress-bar-animated {
+    width: 100%;
+    height: 0.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-bar-animated .progress-fill-animated {
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        #3b82f6 0%,
+        #60a5fa 50%,
+        #3b82f6 100%
+    );
+    background-size: 200% 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+    animation: progressShine 2s ease-in-out infinite;
+    position: relative;
+    overflow: hidden;
+}
+
+.progress-fill-animated::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.3) 50%,
+        transparent 100%
+    );
+    animation: progressGloss 1.5s ease-in-out infinite;
+}
+
+@keyframes progressShine {
+    0% {
+        background-position: 0% 0%;
+    }
+    100% {
+        background-position: 200% 0%;
+    }
+}
+
+@keyframes progressGloss {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+/* Striped progress bar */
+.progress-bar-striped {
+    width: 100%;
+    height: 0.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-bar-striped .progress-fill-striped {
+    height: 100%;
+    background: linear-gradient(
+        45deg,
+        rgba(59, 130, 246, 0.8) 25%,
+        rgba(96, 165, 250, 0.8) 25%,
+        rgba(96, 165, 250, 0.8) 50%,
+        rgba(59, 130, 246, 0.8) 50%,
+        rgba(59, 130, 246, 0.8) 75%,
+        rgba(96, 165, 250, 0.8) 75%,
+        rgba(96, 165, 250, 0.8)
+    );
+    background-size: 1rem 1rem;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+    animation: progressStripes 1s linear infinite;
+}
+
+@keyframes progressStripes {
+    0% {
+        background-position: 0 0;
+    }
+    100% {
+        background-position: 1rem 0;
+    }
+}
+
+/* Indeterminate progress bar */
+.progress-bar-indeterminate {
+    width: 100%;
+    height: 0.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-bar-indeterminate::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 40%;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        #3b82f6 50%,
+        transparent 100%
+    );
+    animation: progressIndeterminate 1.5s ease-in-out infinite;
+}
+
+@keyframes progressIndeterminate {
+    0% {
+        left: -40%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+/* Circular progress */
+.progress-circular {
+    width: 4rem;
+    height: 4rem;
+    position: relative;
+}
+
+.progress-circular svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.progress-circular circle {
+    fill: none;
+    stroke-width: 4;
+}
+
+.progress-circular .progress-bg {
+    stroke: rgba(255, 255, 255, 0.1);
+}
+
+.progress-circular .progress-value {
+    stroke: #3b82f6;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.3s ease;
+}
+
+.progress-circular-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: white;
+}
+
+/* ============================================
+   4. SUCCESS/ERROR ANIMATIONS
+   ============================================ */
+
+/* Success checkmark animation */
+.success-animation {
+    width: 4rem;
+    height: 4rem;
+    border-radius: 50%;
+    background: #10b981;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: successPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.success-checkmark {
+    width: 2rem;
+    height: 2rem;
+    position: relative;
+}
+
+.success-checkmark::before,
+.success-checkmark::after {
+    content: '';
+    position: absolute;
+    background: white;
+    border-radius: 2px;
+}
+
+.success-checkmark::before {
+    width: 0.25rem;
+    height: 1rem;
+    left: 0.5rem;
+    top: 0.75rem;
+    transform: rotate(45deg);
+    animation: checkmarkShort 0.3s ease 0.2s forwards;
+    transform-origin: bottom;
+    opacity: 0;
+}
+
+.success-checkmark::after {
+    width: 0.25rem;
+    height: 1.5rem;
+    right: 0.25rem;
+    top: 0.25rem;
+    transform: rotate(-45deg);
+    animation: checkmarkLong 0.4s ease 0.3s forwards;
+    transform-origin: bottom;
+    opacity: 0;
+}
+
+@keyframes successPop {
+    0% {
+        transform: scale(0);
+        opacity: 0;
+    }
+    50% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes checkmarkShort {
+    0% {
+        height: 0;
+        opacity: 0;
+    }
+    100% {
+        height: 1rem;
+        opacity: 1;
+    }
+}
+
+@keyframes checkmarkLong {
+    0% {
+        height: 0;
+        opacity: 0;
+    }
+    100% {
+        height: 1.5rem;
+        opacity: 1;
+    }
+}
+
+/* Error X animation */
+.error-animation {
+    width: 4rem;
+    height: 4rem;
+    border-radius: 50%;
+    background: #ef4444;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: errorShake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+.error-x {
+    width: 2rem;
+    height: 2rem;
+    position: relative;
+}
+
+.error-x::before,
+.error-x::after {
+    content: '';
+    position: absolute;
+    width: 0.25rem;
+    height: 2rem;
+    background: white;
+    border-radius: 2px;
+    top: 0;
+    left: 50%;
+    transform-origin: center;
+}
+
+.error-x::before {
+    transform: translateX(-50%) rotate(45deg);
+    animation: errorLineLeft 0.3s ease 0.2s forwards;
+    opacity: 0;
+}
+
+.error-x::after {
+    transform: translateX(-50%) rotate(-45deg);
+    animation: errorLineRight 0.3s ease 0.3s forwards;
+    opacity: 0;
+}
+
+@keyframes errorShake {
+    0%, 100% {
+        transform: translateX(0);
+    }
+    10%, 30%, 50%, 70%, 90% {
+        transform: translateX(-5px);
+    }
+    20%, 40%, 60%, 80% {
+        transform: translateX(5px);
+    }
+}
+
+@keyframes errorLineLeft {
+    0% {
+        height: 0;
+        opacity: 0;
+    }
+    100% {
+        height: 2rem;
+        opacity: 1;
+    }
+}
+
+@keyframes errorLineRight {
+    0% {
+        height: 0;
+        opacity: 0;
+    }
+    100% {
+        height: 2rem;
+        opacity: 1;
+    }
+}
+
+/* Warning animation */
+.warning-animation {
+    width: 4rem;
+    height: 4rem;
+    border-radius: 50%;
+    background: #f59e0b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: warningPulse 0.5s ease;
+}
+
+.warning-icon {
+    width: 2rem;
+    height: 2rem;
+    position: relative;
+}
+
+.warning-icon::before {
+    content: '!';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: white;
+    animation: warningBounce 0.6s ease 0.2s;
+}
+
+@keyframes warningPulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+}
+
+@keyframes warningBounce {
+    0%, 100% {
+        transform: translate(-50%, -50%) scale(1);
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(1.2);
+    }
+}
+
+/* Info animation */
+.info-animation {
+    width: 4rem;
+    height: 4rem;
+    border-radius: 50%;
+    background: #3b82f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: infoFade 0.5s ease;
+}
+
+.info-icon {
+    width: 2rem;
+    height: 2rem;
+    position: relative;
+}
+
+.info-icon::before {
+    content: 'i';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: white;
+    font-style: italic;
+    animation: infoSlide 0.4s ease 0.2s;
+}
+
+@keyframes infoFade {
+    0% {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes infoSlide {
+    0% {
+        transform: translate(-50%, -60%);
+        opacity: 0;
+    }
+    100% {
+        transform: translate(-50%, -50%);
+        opacity: 1;
+    }
+}
+
+/* ============================================
+   5. LOADING CONTAINER VARIANTS
+   ============================================ */
+
+/* Centered loading container */
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 2rem;
+}
+
+.loading-container-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Loading text */
+.loading-text {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-align: center;
+}
+
+.loading-text-sm {
+    font-size: 0.75rem;
+}
+
+.loading-text-lg {
+    font-size: 1rem;
+}
+
+/* ============================================
+   6. ACCESSIBILITY & REDUCED MOTION
+   ============================================ */
+
+/* Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+    .spinner-default,
+    .spinner-dual-ring::after,
+    .spinner-circular svg,
+    .progress-fill-animated,
+    .progress-fill-striped,
+    .progress-bar-indeterminate::before {
+        animation: none !important;
+    }
+
+    .skeleton {
+        animation: none !important;
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .success-animation,
+    .error-animation,
+    .warning-animation,
+    .info-animation {
+        animation: none !important;
+    }
+
+    .success-checkmark::before,
+    .success-checkmark::after,
+    .error-x::before,
+    .error-x::after,
+    .warning-icon::before,
+    .info-icon::before {
+        animation: none !important;
+        opacity: 1 !important;
+    }
+
+    /* Show static spinner for reduced motion */
+    .spinner-default,
+    .spinner-dual-ring::after {
+        border-top-color: white;
+        opacity: 0.8;
+    }
+}
+
+/* ============================================
+   7. UTILITY CLASSES
+   ============================================ */
+
+.loading-sm {
+    width: 1.5rem;
+    height: 1.5rem;
+}
+
+.loading-md {
+    width: 3rem;
+    height: 3rem;
+}
+
+.loading-lg {
+    width: 4rem;
+    height: 4rem;
+}
+
+.loading-xl {
+    width: 5rem;
+    height: 5rem;
+}
+
+/* Color variants */
+.loading-primary {
+    border-top-color: #3b82f6;
+}
+
+.loading-success {
+    border-top-color: #10b981;
+}
+
+.loading-error {
+    border-top-color: #ef4444;
+}
+
+.loading-warning {
+    border-top-color: #f59e0b;
+}

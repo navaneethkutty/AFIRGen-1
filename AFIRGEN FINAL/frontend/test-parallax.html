@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parallax Scrolling Test - AFIRGen</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/themes.css">
+    <link rel="stylesheet" href="css/parallax.css">
+    <style>
+        /* Additional test styles */
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 300vh; /* Make page scrollable */
+        }
+
+        .test-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 1rem 2rem;
+            z-index: 1000;
+            border-bottom: 1px solid rgba(75, 75, 75, 0.3);
+        }
+
+        .test-header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: white;
+        }
+
+        .test-controls {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .test-btn {
+            padding: 0.5rem 1rem;
+            background: rgba(50, 50, 50, 0.8);
+            border: 1px solid rgba(100, 100, 100, 0.4);
+            border-radius: 0.5rem;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .test-btn:hover {
+            background: rgba(70, 70, 70, 0.9);
+            border-color: rgba(120, 120, 120, 0.6);
+        }
+
+        .test-hero {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .test-content {
+            position: relative;
+            z-index: 10;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .test-title {
+            font-size: 8rem;
+            font-weight: 300;
+            color: white;
+            margin-bottom: 2rem;
+            letter-spacing: -0.05em;
+        }
+
+        .test-subtitle {
+            font-size: 1.5rem;
+            color: rgba(200, 200, 200, 1);
+            margin-bottom: 3rem;
+        }
+
+        .test-section {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4rem 2rem;
+            background: rgba(10, 10, 10, 0.8);
+        }
+
+        .test-section:nth-child(even) {
+            background: rgba(20, 20, 20, 0.8);
+        }
+
+        .test-section-content {
+            max-width: 800px;
+            text-align: center;
+        }
+
+        .test-section h2 {
+            font-size: 3rem;
+            color: white;
+            margin-bottom: 1rem;
+        }
+
+        .test-section p {
+            font-size: 1.25rem;
+            color: rgba(180, 180, 180, 1);
+            line-height: 1.8;
+        }
+
+        .scroll-indicator {
+            position: absolute;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(200, 200, 200, 0.8);
+            font-size: 0.875rem;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% {
+                transform: translateX(-50%) translateY(0);
+            }
+            50% {
+                transform: translateX(-50%) translateY(10px);
+            }
+        }
+
+        .scroll-indicator svg {
+            width: 24px;
+            height: 24px;
+            display: block;
+            margin: 0 auto 0.5rem;
+        }
+
+        .info-box {
+            background: rgba(30, 30, 30, 0.9);
+            border: 1px solid rgba(75, 75, 75, 0.4);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-top: 2rem;
+        }
+
+        .info-box h3 {
+            color: white;
+            margin-bottom: 1rem;
+        }
+
+        .info-box ul {
+            list-style: none;
+            padding: 0;
+            color: rgba(180, 180, 180, 1);
+        }
+
+        .info-box li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(75, 75, 75, 0.2);
+        }
+
+        .info-box li:last-child {
+            border-bottom: none;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+
+        .status-active {
+            background: #22c55e;
+            box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+        }
+
+        .status-inactive {
+            background: #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <!-- Test Header -->
+    <div class="test-header">
+        <h1>Parallax Scrolling Test</h1>
+        <div class="test-controls">
+            <button class="test-btn" onclick="stopParallax()">Stop Parallax</button>
+            <button class="test-btn" onclick="startParallax()">Start Parallax</button>
+            <button class="test-btn" onclick="destroyParallax()">Destroy Parallax</button>
+            <button class="test-btn" onclick="initParallax()">Reinitialize</button>
+            <button class="test-btn" onclick="toggleReducedMotion()">Toggle Reduced Motion</button>
+        </div>
+    </div>
+
+    <!-- Hero Section with Parallax -->
+    <div class="test-hero hero-section">
+        <div class="test-content hero-content">
+            <h1 class="test-title">PARALLAX</h1>
+            <p class="test-subtitle">Scroll down to see the parallax effect in action</p>
+            
+            <div class="info-box">
+                <h3>Parallax Features</h3>
+                <ul>
+                    <li><span class="status-indicator status-active"></span>3 depth layers with different scroll speeds</li>
+                    <li><span class="status-indicator status-active"></span>GPU-accelerated transforms for 60fps</li>
+                    <li><span class="status-indicator status-active"></span>Decorative shapes with gradients</li>
+                    <li><span class="status-indicator status-active"></span>Respects prefers-reduced-motion</li>
+                    <li><span class="status-indicator status-active"></span>Disabled on mobile for performance</li>
+                    <li><span class="status-indicator status-active"></span>Optimized with requestAnimationFrame</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="scroll-indicator">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+            </svg>
+            Scroll Down
+        </div>
+    </div>
+
+    <!-- Test Sections -->
+    <div class="test-section">
+        <div class="test-section-content">
+            <h2>Layer 1: Slowest</h2>
+            <p>
+                The first parallax layer moves at 0.1x scroll speed, creating the deepest depth effect.
+                It contains 3 large decorative shapes with low opacity for a subtle background effect.
+            </p>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <div class="test-section-content">
+            <h2>Layer 2: Medium</h2>
+            <p>
+                The second layer moves at 0.25x scroll speed, providing a middle ground between
+                the background and foreground. It has 5 medium-sized shapes with slightly higher opacity.
+            </p>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <div class="test-section-content">
+            <h2>Layer 3: Fastest</h2>
+            <p>
+                The third layer moves at 0.4x scroll speed, creating the most noticeable parallax effect.
+                It contains 8 smaller shapes that move more quickly as you scroll.
+            </p>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <div class="test-section-content">
+            <h2>Performance Optimizations</h2>
+            <p>
+                All parallax layers use CSS transforms (translate3d) for GPU acceleration,
+                ensuring smooth 60fps scrolling. The effect uses requestAnimationFrame to
+                synchronize updates with the browser's repaint cycle.
+            </p>
+            <div class="info-box">
+                <h3>Technical Details</h3>
+                <ul>
+                    <li>Transform: translate3d(0, offset, 0)</li>
+                    <li>will-change: transform</li>
+                    <li>backface-visibility: hidden</li>
+                    <li>Passive scroll listeners</li>
+                    <li>requestAnimationFrame throttling</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <div class="test-section-content">
+            <h2>Accessibility</h2>
+            <p>
+                The parallax effect respects the prefers-reduced-motion media query.
+                Users who have enabled reduced motion in their system settings will
+                not see any parallax animations, ensuring a comfortable experience for
+                users with vestibular disorders or motion sensitivity.
+            </p>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <div class="test-section-content">
+            <h2>End of Test</h2>
+            <p>
+                Scroll back to the top to see the parallax effect in reverse.
+                Use the control buttons in the header to test different states.
+            </p>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/parallax.js"></script>
+    <script>
+        // Test utility functions
+        function toggleReducedMotion() {
+            const body = document.body;
+            const currentState = body.style.getPropertyValue('--reduced-motion');
+            
+            if (currentState === 'reduce') {
+                body.style.setProperty('--reduced-motion', 'no-preference');
+                alert('Reduced motion disabled (simulated)');
+            } else {
+                body.style.setProperty('--reduced-motion', 'reduce');
+                alert('Reduced motion enabled (simulated)\nNote: This is a simulation. Real reduced motion is controlled by system settings.');
+            }
+        }
+
+        // Log parallax status
+        console.log('Parallax Test Page Loaded');
+        console.log('Parallax Effect:', window.parallaxEffect);
+        console.log('Prefers Reduced Motion:', window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        
+        // Monitor scroll performance
+        let lastScrollTime = Date.now();
+        let frameCount = 0;
+        let fps = 0;
+
+        window.addEventListener('scroll', () => {
+            frameCount++;
+            const now = Date.now();
+            const elapsed = now - lastScrollTime;
+            
+            if (elapsed >= 1000) {
+                fps = Math.round((frameCount * 1000) / elapsed);
+                console.log(`Scroll FPS: ${fps}`);
+                frameCount = 0;
+                lastScrollTime = now;
+            }
+        }, { passive: true });
+    </script>
+</body>
+</html>

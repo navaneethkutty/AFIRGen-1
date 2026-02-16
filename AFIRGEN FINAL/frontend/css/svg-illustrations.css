@@ -1,0 +1,265 @@
+/**
+ * SVG Illustration Animations Styles
+ */
+
+/* Base illustration styles */
+.illustration-empty-state,
+.illustration-success,
+.illustration-error {
+  display: block;
+  margin: 0 auto;
+  color: currentColor;
+}
+
+/* Fade in up animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Fade in scale animation */
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Draw circle animation */
+@keyframes drawCircle {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Draw checkmark animation */
+@keyframes drawCheckmark {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Draw line animation */
+@keyframes drawLine {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Shake animation */
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-5px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(5px);
+  }
+}
+
+/* Float animation for empty state */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Empty state specific styles */
+.illustration-empty-state .doc-group {
+  animation: float 3s ease-in-out infinite;
+}
+
+.illustration-empty-state .glass-group {
+  transform-origin: center;
+}
+
+/* Success illustration styles */
+.illustration-success {
+  color: #10b981;
+}
+
+.success-circle {
+  transform-origin: center;
+}
+
+.success-checkmark {
+  transform-origin: center;
+}
+
+/* Error illustration styles */
+.illustration-error {
+  color: #ef4444;
+}
+
+.error-circle {
+  transform-origin: center;
+}
+
+/* Pulse effect for success */
+@keyframes successPulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.illustration-success.pulse {
+  animation: successPulse 1s ease-in-out;
+}
+
+/* Bounce effect for error */
+@keyframes errorBounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  25% {
+    transform: translateY(-10px);
+  }
+  50% {
+    transform: translateY(0);
+  }
+  75% {
+    transform: translateY(-5px);
+  }
+}
+
+.illustration-error.bounce {
+  animation: errorBounce 0.6s ease-in-out;
+}
+
+/* Glow effect */
+@keyframes glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 5px currentColor);
+  }
+  50% {
+    filter: drop-shadow(0 0 15px currentColor);
+  }
+}
+
+.illustration-success.glow {
+  animation: glow 2s ease-in-out infinite;
+}
+
+/* Rotate animation for loading states */
+@keyframes rotate360 {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Container styles */
+.illustration-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+}
+
+.illustration-container svg {
+  margin-bottom: 1rem;
+}
+
+.illustration-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: inherit;
+}
+
+.illustration-description {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.7);
+  max-width: 400px;
+}
+
+/* Dark mode adjustments */
+.dark-mode .illustration-empty-state {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.dark-mode .illustration-success {
+  color: #34d399;
+}
+
+.dark-mode .illustration-error {
+  color: #f87171;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .illustration-empty-state,
+  .illustration-success,
+  .illustration-error,
+  .illustration-empty-state .doc-group,
+  .illustration-empty-state .glass-group,
+  .success-circle,
+  .success-checkmark,
+  .error-circle,
+  .error-line-1,
+  .error-line-2 {
+    animation: none !important;
+  }
+  
+  .illustration-empty-state .doc-group,
+  .illustration-empty-state .glass-group {
+    opacity: 1 !important;
+  }
+  
+  .success-circle,
+  .success-checkmark,
+  .error-circle,
+  .error-line-1,
+  .error-line-2 {
+    stroke-dasharray: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+}
+
+/* Performance optimization */
+.illustration-empty-state,
+.illustration-success,
+.illustration-error {
+  will-change: transform, opacity;
+}
+
+.illustration-empty-state .doc-group,
+.illustration-empty-state .glass-group {
+  will-change: transform, opacity;
+}
+
+.success-circle,
+.success-checkmark,
+.error-circle,
+.error-line-1,
+.error-line-2 {
+  will-change: stroke-dashoffset;
+}

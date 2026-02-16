@@ -127,6 +127,12 @@ async function handleGenerate() {
       (firData) => {
         window.hideLoading(pollingId);
         window.showToast('FIR generated successfully!', 'success');
+        
+        // Show confetti effect for successful FIR generation
+        if (window.showConfetti) {
+          window.showConfetti();
+        }
+        
         window.showResult({
           success: true,
           fir_content: firData.content,
@@ -190,6 +196,12 @@ async function handleValidation(approved, userInput) {
 
     if (data.completed) {
       window.showToast('Validation approved! FIR completed.', 'success');
+      
+      // Show confetti effect for completed FIR
+      if (window.showConfetti) {
+        window.showConfetti();
+      }
+      
       window.showResult({
         success: true,
         fir_content: data.content.fir_content,

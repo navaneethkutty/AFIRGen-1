@@ -92,7 +92,7 @@ class APIClient {
         throw error;
       }
 
-      return await response.json();
+      return response.json();
     });
 
     // Cache the result if enabled
@@ -139,7 +139,7 @@ class APIClient {
         throw error;
       }
 
-      return await response.json();
+      return response.json();
     });
   }
 
@@ -176,12 +176,6 @@ class APIClient {
     });
   }
 
-  /**
-   * Clear all cached data
-   */
-  clearCache() {
-    this.cache.clear();
-  }
   /**
    * Clear all cached data
    */
@@ -509,7 +503,7 @@ async function getSessionStatus(sessionId) {
       throw error;
     }
 
-    return await response.json();
+    return response.json();
   });
 }
 
@@ -533,7 +527,7 @@ async function getFIR(firNumber) {
       throw error;
     }
 
-    return await response.json();
+    return response.json();
   });
 }
 

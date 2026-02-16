@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glassmorphism Effects Test - AFIRGen</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/themes.css">
+    <link rel="stylesheet" href="css/glassmorphism.css">
+    <style>
+        /* Test page specific styles */
+        .test-container {
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .test-section {
+            margin-bottom: 3rem;
+        }
+        
+        .test-title {
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: white;
+        }
+        
+        .test-description {
+            color: rgba(209, 213, 219, 1);
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+        
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .test-card {
+            padding: 1.5rem;
+            border-radius: 12px;
+            min-height: 150px;
+        }
+        
+        .test-card h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: white;
+        }
+        
+        .test-card p {
+            color: rgba(200, 200, 200, 1);
+            font-size: 0.875rem;
+            line-height: 1.6;
+        }
+        
+        .theme-toggle {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            padding: 0.75rem 1.5rem;
+            background: rgba(30, 30, 30, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+        
+        .theme-toggle:hover {
+            background: rgba(40, 40, 40, 0.9);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        }
+        
+        .modal-demo-trigger {
+            padding: 0.75rem 1.5rem;
+            background: rgba(96, 165, 250, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(96, 165, 250, 0.3);
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .modal-demo-trigger:hover {
+            background: rgba(96, 165, 250, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(96, 165, 250, 0.3);
+        }
+        
+        .toast-demo-buttons {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .toast-demo-btn {
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            border: 1px solid;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.875rem;
+            transition: all 0.3s ease;
+        }
+        
+        .toast-demo-btn.success {
+            background: rgba(52, 211, 153, 0.15);
+            border-color: rgba(52, 211, 153, 0.3);
+            color: #34d399;
+        }
+        
+        .toast-demo-btn.error {
+            background: rgba(248, 113, 113, 0.15);
+            border-color: rgba(248, 113, 113, 0.3);
+            color: #f87171;
+        }
+        
+        .toast-demo-btn.warning {
+            background: rgba(251, 191, 36, 0.15);
+            border-color: rgba(251, 191, 36, 0.3);
+            color: #fbbf24;
+        }
+        
+        .toast-demo-btn.info {
+            background: rgba(96, 165, 250, 0.15);
+            border-color: rgba(96, 165, 250, 0.3);
+            color: #60a5fa;
+        }
+        
+        .browser-support {
+            background: rgba(30, 30, 30, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+        
+        .browser-support h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: white;
+        }
+        
+        .browser-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        
+        .browser-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: rgba(200, 200, 200, 1);
+            font-size: 0.875rem;
+        }
+        
+        .browser-item .check {
+            color: #34d399;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <!-- Theme Toggle Button -->
+    <button class="theme-toggle" onclick="toggleTheme()">
+        Toggle Light/Dark Mode
+    </button>
+    
+    <!-- Particle Canvas -->
+    <canvas id="particle-canvas"></canvas>
+    
+    <div class="test-container">
+        <h1 class="test-title" style="font-size: 3rem; text-align: center; margin-bottom: 0.5rem;">
+            Glassmorphism Effects Test
+        </h1>
+        <p style="text-align: center; color: rgba(200, 200, 200, 1); margin-bottom: 3rem;">
+            Testing frosted glass effects on cards, modals, and overlays with cross-browser compatibility
+        </p>
+        
+        <!-- Card Glassmorphism Section -->
+        <section class="test-section">
+            <h2 class="test-title">Card Glassmorphism</h2>
+            <p class="test-description">
+                Cards with frosted glass effect using backdrop-filter blur. Hover over cards to see enhanced effect.
+            </p>
+            
+            <div class="test-grid">
+                <div class="test-card glass">
+                    <h3>Base Glass Effect</h3>
+                    <p>This card uses the .glass utility class with subtle blur and transparency.</p>
+                </div>
+                
+                <div class="test-card glass-strong">
+                    <h3>Strong Glass Effect</h3>
+                    <p>This card uses .glass-strong with more intense blur and higher opacity.</p>
+                </div>
+                
+                <div class="test-card glass-subtle">
+                    <h3>Subtle Glass Effect</h3>
+                    <p>This card uses .glass-subtle with minimal blur for a lighter effect.</p>
+                </div>
+            </div>
+            
+            <h3 style="color: white; margin-bottom: 1rem; font-size: 1.25rem;">FIR Item Cards</h3>
+            <div class="test-grid">
+                <div class="fir-item">
+                    <div class="fir-number">FIR #2024-001</div>
+                    <div class="fir-complainant">John Doe</div>
+                    <span class="fir-status status-pending">Pending</span>
+                </div>
+                
+                <div class="fir-item">
+                    <div class="fir-number">FIR #2024-002</div>
+                    <div class="fir-complainant">Jane Smith</div>
+                    <span class="fir-status status-investigating">Investigating</span>
+                </div>
+                
+                <div class="fir-item">
+                    <div class="fir-number">FIR #2024-003</div>
+                    <div class="fir-complainant">Bob Johnson</div>
+                    <span class="fir-status status-closed">Closed</span>
+                </div>
+            </div>
+            
+            <h3 style="color: white; margin-bottom: 1rem; font-size: 1.25rem;">Step Items</h3>
+            <div class="test-grid">
+                <div class="step-item">
+                    <div class="step-title">Upload Files</div>
+                    <div class="step-description">Upload your letter/image and audio files to begin the FIR generation process.</div>
+                </div>
+                
+                <div class="step-item">
+                    <div class="step-title">Generate FIR</div>
+                    <div class="step-description">Our AI processes your files and generates a comprehensive FIR document.</div>
+                </div>
+                
+                <div class="step-item">
+                    <div class="step-title">Review & Submit</div>
+                    <div class="step-description">Review the generated FIR, make any necessary edits, and submit.</div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Modal Glassmorphism Section -->
+        <section class="test-section">
+            <h2 class="test-title">Modal Glassmorphism</h2>
+            <p class="test-description">
+                Modals with backdrop blur overlay and frosted glass content. Click the button to see the effect.
+            </p>
+            
+            <button class="modal-demo-trigger" onclick="showDemoModal()">
+                Open Demo Modal
+            </button>
+        </section>
+        
+        <!-- Toast Glassmorphism Section -->
+        <section class="test-section">
+            <h2 class="test-title">Toast Notifications</h2>
+            <p class="test-description">
+                Toast notifications with glassmorphism effect. Click buttons to trigger different toast types.
+            </p>
+            
+            <div class="toast-demo-buttons">
+                <button class="toast-demo-btn success" onclick="showDemoToast('success')">
+                    Success Toast
+                </button>
+                <button class="toast-demo-btn error" onclick="showDemoToast('error')">
+                    Error Toast
+                </button>
+                <button class="toast-demo-btn warning" onclick="showDemoToast('warning')">
+                    Warning Toast
+                </button>
+                <button class="toast-demo-btn info" onclick="showDemoToast('info')">
+                    Info Toast
+                </button>
+            </div>
+        </section>
+        
+        <!-- Browser Support Section -->
+        <section class="test-section">
+            <div class="browser-support">
+                <h3>Cross-Browser Compatibility</h3>
+                <div class="browser-list">
+                    <div class="browser-item">
+                        <span class="check">✓</span>
+                        <span>Chrome 76+</span>
+                    </div>
+                    <div class="browser-item">
+                        <span class="check">✓</span>
+                        <span>Edge 79+</span>
+                    </div>
+                    <div class="browser-item">
+                        <span class="check">✓</span>
+                        <span>Safari 9+</span>
+                    </div>
+                    <div class="browser-item">
+                        <span class="check">✓</span>
+                        <span>Firefox 103+</span>
+                    </div>
+                    <div class="browser-item">
+                        <span class="check">✓</span>
+                        <span>Opera 63+</span>
+                    </div>
+                    <div class="browser-item">
+                        <span class="check">✓</span>
+                        <span>iOS Safari 9+</span>
+                    </div>
+                </div>
+                <p style="margin-top: 1rem; color: rgba(200, 200, 200, 1); font-size: 0.875rem;">
+                    Fallback styles are provided for browsers that don't support backdrop-filter.
+                </p>
+            </div>
+        </section>
+        
+        <!-- Technical Details Section -->
+        <section class="test-section">
+            <h2 class="test-title">Technical Implementation</h2>
+            <div class="test-card glass-strong">
+                <h3>Key Features</h3>
+                <ul style="color: rgba(200, 200, 200, 1); line-height: 1.8; margin-top: 1rem;">
+                    <li><strong>Backdrop Blur:</strong> Uses backdrop-filter: blur() for frosted glass effect</li>
+                    <li><strong>Cross-Browser:</strong> Includes -webkit-backdrop-filter for Safari support</li>
+                    <li><strong>Fallbacks:</strong> Solid backgrounds for browsers without backdrop-filter support</li>
+                    <li><strong>Performance:</strong> Optimized with will-change and reduced motion support</li>
+                    <li><strong>Accessibility:</strong> High contrast mode support and sufficient text contrast</li>
+                    <li><strong>Responsive:</strong> Reduced blur intensity on mobile devices for better performance</li>
+                </ul>
+            </div>
+        </section>
+    </div>
+    
+    <!-- Demo Modal -->
+    <div class="modal-overlay hidden" id="demo-modal" onclick="hideDemoModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <h2>Glassmorphism Modal</h2>
+                </div>
+                <button class="modal-close" onclick="hideDemoModal()" aria-label="Close modal">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p style="color: rgba(200, 200, 200, 1); line-height: 1.6; margin-bottom: 1rem;">
+                    This modal demonstrates the glassmorphism effect with:
+                </p>
+                <ul style="color: rgba(200, 200, 200, 1); line-height: 1.8; margin-left: 1.5rem;">
+                    <li>Backdrop blur on the overlay (8px)</li>
+                    <li>Strong blur on the modal content (20px)</li>
+                    <li>Semi-transparent background</li>
+                    <li>Subtle border with light color</li>
+                    <li>Inset highlight for depth</li>
+                </ul>
+                <p style="color: rgba(200, 200, 200, 1); line-height: 1.6; margin-top: 1rem;">
+                    The effect creates a sense of depth and hierarchy while maintaining readability.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-demo-trigger" onclick="hideDemoModal()">
+                    Close Modal
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Container -->
+    <div id="toast-container" style="position: fixed; top: 1rem; right: 1rem; z-index: 10000; display: flex; flex-direction: column; gap: 0.75rem;"></div>
+    
+    <!-- Scripts -->
+    <script src="js/particles.js"></script>
+    <script src="js/ui.js"></script>
+    <script>
+        // Theme toggle
+        function toggleTheme() {
+            document.body.classList.toggle('light-mode');
+        }
+        
+        // Modal functions
+        function showDemoModal() {
+            const modal = document.getElementById('demo-modal');
+            modal.classList.remove('hidden');
+        }
+        
+        function hideDemoModal(event) {
+            if (event && event.target !== event.currentTarget) return;
+            const modal = document.getElementById('demo-modal');
+            modal.classList.add('hidden');
+        }
+        
+        // Toast functions
+        function showDemoToast(type) {
+            const messages = {
+                success: 'Operation completed successfully!',
+                error: 'An error occurred. Please try again.',
+                warning: 'Warning: This action requires confirmation.',
+                info: 'Information: Your session will expire in 5 minutes.'
+            };
+            
+            if (typeof showToast === 'function') {
+                showToast(messages[type], type, 5000);
+            } else {
+                // Fallback if ui.js not loaded
+                const container = document.getElementById('toast-container');
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                toast.style.cssText = 'padding: 1rem 1.5rem; border-radius: 8px; color: white; font-weight: 500; min-width: 300px;';
+                toast.textContent = messages[type];
+                container.appendChild(toast);
+                
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(100%)';
+                    setTimeout(() => toast.remove(), 300);
+                }, 5000);
+            }
+        }
+        
+        // Initialize particles
+        if (typeof initParticles === 'function') {
+            initParticles();
+        }
+    </script>
+</body>
+</html>

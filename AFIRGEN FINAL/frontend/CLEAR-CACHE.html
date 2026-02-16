@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Cache</title>
+    <script>
+        // Force clear cache and reload
+        if ('caches' in window) {
+            caches.keys().then(function(names) {
+                for (let name of names) {
+                    caches.delete(name);
+                }
+            });
+        }
+        
+        // Clear service worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) {
+                    registration.unregister();
+                }
+            });
+        }
+        
+        alert('Cache cleared! Now press Ctrl+Shift+R (or Cmd+Shift+R on Mac) to hard refresh the page.');
+        
+        setTimeout(function() {
+            window.location.href = '/index.html';
+        }, 2000);
+    </script>
+</head>
+<body>
+    <h1>Clearing cache...</h1>
+    <p>Please wait...</p>
+</body>
+</html>

@@ -1,0 +1,560 @@
+/**
+ * Morphing Transitions CSS
+ * 
+ * Smooth state transitions and morphing animations:
+ * - Card flip animations for FIR items
+ * - Expanding/collapsing animations
+ * - Smooth state transitions
+ * 
+ * Optimized for 60fps using CSS transforms and GPU acceleration
+ */
+
+/* ============================================
+   Card Flip Animation for FIR Items
+   ============================================ */
+
+.fir-item {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.4, 0.0, 0.2, 1);
+  will-change: transform;
+}
+
+.fir-item.flipping {
+  transform: rotateY(180deg);
+}
+
+.fir-item-front,
+.fir-item-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.fir-item-back {
+  transform: rotateY(180deg);
+}
+
+/* Flip trigger on hover (optional) */
+.fir-item:hover {
+  transform: rotateY(10deg);
+}
+
+/* ============================================
+   Expanding/Collapsing Animations
+   ============================================ */
+
+.expandable {
+  overflow: hidden;
+  transition: max-height 0.4s cubic-bezier(0.4, 0.0, 0.2, 1),
+              opacity 0.3s ease-out,
+              transform 0.3s ease-out;
+  will-change: max-height, opacity, transform;
+}
+
+.expandable.collapsed {
+  max-height: 0;
+  opacity: 0;
+  transform: scaleY(0.8);
+  transform-origin: top;
+}
+
+.expandable.expanded {
+  max-height: 1000px; /* Adjust based on content */
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+/* Smooth height transition for dynamic content */
+.expandable-content {
+  transition: transform 0.3s ease-out;
+}
+
+.expandable.collapsed .expandable-content {
+  transform: translateY(-10px);
+}
+
+.expandable.expanded .expandable-content {
+  transform: translateY(0);
+}
+
+/* ============================================
+   Accordion-style Expand/Collapse
+   ============================================ */
+
+.accordion-item {
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+.accordion-header {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.accordion-header:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.accordion-content {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: max-height 0.4s cubic-bezier(0.4, 0.0, 0.2, 1),
+              opacity 0.3s ease-out,
+              transform 0.3s ease-out;
+}
+
+.accordion-item.open .accordion-content {
+  max-height: 500px;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.accordion-icon {
+  transition: transform 0.3s ease;
+}
+
+.accordion-item.open .accordion-icon {
+  transform: rotate(180deg);
+}
+
+/* ============================================
+   Modal Morphing Transitions
+   ============================================ */
+
+.modal-overlay {
+  transition: opacity 0.3s ease-out,
+              backdrop-filter 0.3s ease-out;
+}
+
+.modal-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.modal-content {
+  transition: transform 0.4s cubic-bezier(0.4, 0.0, 0.2, 1),
+              opacity 0.3s ease-out;
+  will-change: transform, opacity;
+}
+
+.modal-overlay.hidden .modal-content {
+  transform: scale(0.9) translateY(20px);
+  opacity: 0;
+}
+
+.modal-overlay:not(.hidden) .modal-content {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+}
+
+/* ============================================
+   Button State Morphing
+   ============================================ */
+
+.btn-morph {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+.btn-morph::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s ease, height 0.6s ease;
+}
+
+.btn-morph:active::before {
+  width: 300px;
+  height: 300px;
+}
+
+/* Loading state morph */
+.btn-morph.loading {
+  pointer-events: none;
+}
+
+.btn-morph.loading .btn-text {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.btn-morph.loading .btn-spinner {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.btn-text,
+.btn-spinner {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.btn-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) translateY(10px);
+  opacity: 0;
+}
+
+/* ============================================
+   Tab Switching - Simple Fade Animation
+   ============================================ */
+
+.tab-content {
+  transition: opacity 0.3s ease-in-out;
+  will-change: opacity;
+}
+
+.tab-content:not(.active) {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  visibility: hidden;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 0;
+  overflow: hidden;
+}
+
+.tab-content.active {
+  opacity: 1;
+  pointer-events: auto;
+  position: relative;
+  visibility: visible;
+  height: auto;
+  overflow-y: auto;
+}
+
+.main-container {
+  transition: opacity 0.3s ease-in-out;
+  will-change: opacity;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.main-container:not(.active) {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  visibility: hidden;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+.main-container.active {
+  opacity: 1;
+  pointer-events: auto;
+  position: relative;
+  visibility: visible;
+}
+
+
+/* ============================================
+   Status Badge Morphing
+   ============================================ */
+
+.status-badge {
+  transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+  will-change: background-color, transform;
+}
+
+.status-badge.morphing {
+  transform: scale(1.1);
+}
+
+.status-badge.pending {
+  background-color: #fbbf24;
+}
+
+.status-badge.investigating {
+  background-color: #3b82f6;
+}
+
+.status-badge.closed {
+  background-color: #10b981;
+}
+
+/* ============================================
+   List Item Morphing (Reorder Animation)
+   ============================================ */
+
+.list-item {
+  transition: transform 0.4s cubic-bezier(0.4, 0.0, 0.2, 1),
+              opacity 0.3s ease-out;
+  will-change: transform, opacity;
+}
+
+.list-item.moving {
+  z-index: 10;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.list-item.removing {
+  opacity: 0;
+  transform: translateX(-100%) scale(0.8);
+}
+
+.list-item.adding {
+  animation: slideInFade 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+@keyframes slideInFade {
+  from {
+    opacity: 0;
+    transform: translateX(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+/* ============================================
+   Search Bar Morphing
+   ============================================ */
+
+.search-container {
+  transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+.search-container.focused {
+  transform: scale(1.02);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.search-input {
+  transition: all 0.3s ease;
+}
+
+.search-icon {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.search-container.has-value .search-icon {
+  transform: scale(0.8) rotate(90deg);
+  opacity: 0.5;
+}
+
+/* ============================================
+   Card Hover Lift Effect
+   ============================================ */
+
+.card-morph {
+  transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1),
+              box-shadow 0.3s ease;
+  will-change: transform, box-shadow;
+}
+
+.card-morph:hover {
+  transform: translateY(-5px) scale(1.02);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+/* ============================================
+   Progress Bar Morphing
+   ============================================ */
+
+.progress-bar {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  height: 8px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  border-radius: 10px;
+  transition: width 0.4s cubic-bezier(0.4, 0.0, 0.2, 1),
+              transform 0.3s ease;
+  will-change: width, transform;
+}
+
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, 
+    transparent, 
+    rgba(255, 255, 255, 0.3), 
+    transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* ============================================
+   Skeleton Loading Morph
+   ============================================ */
+
+.skeleton {
+  background: linear-gradient(90deg,
+    rgba(255, 255, 255, 0.05) 25%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.05) 75%);
+  background-size: 200% 100%;
+  animation: skeletonLoading 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+@keyframes skeletonLoading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-morph {
+  transition: opacity 0.3s ease-out;
+}
+
+.skeleton-morph.loaded {
+  opacity: 0;
+}
+
+/* ============================================
+   Performance Optimizations
+   ============================================ */
+
+/* Use GPU acceleration for smooth animations */
+.fir-item,
+.expandable,
+.modal-content,
+.tab-content,
+.list-item,
+.card-morph {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Remove will-change after animation completes */
+.animation-complete {
+  will-change: auto;
+}
+
+/* ============================================
+   Accessibility - Reduced Motion
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .fir-item,
+  .expandable,
+  .accordion-item,
+  .modal-overlay,
+  .modal-content,
+  .btn-morph,
+  .tab-content,
+  .status-badge,
+  .list-item,
+  .search-container,
+  .card-morph,
+  .progress-fill,
+  .skeleton {
+    transition: none;
+    animation: none;
+  }
+  
+  .fir-item:hover {
+    transform: none;
+  }
+  
+  .card-morph:hover {
+    transform: none;
+  }
+}
+
+/* ============================================
+   Dark Mode Support
+   ============================================ */
+
+.dark-mode .accordion-header:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark-mode .skeleton {
+  background: linear-gradient(90deg,
+    rgba(255, 255, 255, 0.03) 25%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.03) 75%);
+  background-size: 200% 100%;
+}
+
+/* ============================================
+   Responsive Adjustments
+   ============================================ */
+
+@media (max-width: 768px) {
+  /* Reduce animation complexity on mobile */
+  .fir-item {
+    transition-duration: 0.4s;
+  }
+  
+  .expandable,
+  .accordion-content {
+    transition-duration: 0.3s;
+  }
+  
+  .modal-content {
+    transition-duration: 0.3s;
+  }
+  
+  /* Disable 3D transforms on mobile for better performance */
+  .fir-item {
+    transform-style: flat;
+  }
+  
+  .fir-item:hover {
+    transform: none;
+  }
+}
+
+/* ============================================
+   Print Styles
+   ============================================ */
+
+@media print {
+  .fir-item,
+  .expandable,
+  .modal-content,
+  .tab-content,
+  .list-item,
+  .card-morph {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+  }
+  
+  .expandable.collapsed {
+    max-height: none;
+    opacity: 1;
+    transform: none;
+  }
+}

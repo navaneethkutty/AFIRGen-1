@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loading Animations Test - AFIRGen</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/loading-animations.css">
+    <style>
+        body {
+            padding: 2rem;
+            background: #0a0a0a;
+            color: white;
+        }
+
+        .test-section {
+            margin-bottom: 3rem;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+        }
+
+        .test-section h2 {
+            margin-bottom: 1.5rem;
+            color: #3b82f6;
+            font-size: 1.5rem;
+        }
+
+        .test-section h3 {
+            margin: 1.5rem 0 1rem;
+            color: #60a5fa;
+            font-size: 1.25rem;
+        }
+
+        .spinner-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .spinner-demo {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            padding: 1.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+        }
+
+        .spinner-demo label {
+            font-size: 0.875rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .skeleton-demo {
+            margin-bottom: 2rem;
+        }
+
+        .progress-demo {
+            margin-bottom: 2rem;
+        }
+
+        .progress-demo-item {
+            margin-bottom: 1.5rem;
+        }
+
+        .progress-demo-item label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .animation-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .animation-demo {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            min-height: 200px;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: background 0.2s ease;
+        }
+
+        .btn:hover {
+            background: #2563eb;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .test-container {
+            position: relative;
+            min-height: 200px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 1rem;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .size-demo {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="margin-bottom: 2rem; font-size: 2rem;">Loading Animations Test Suite</h1>
+
+    <!-- 1. Custom Spinners -->
+    <div class="test-section">
+        <h2>1. Custom Animated Spinners</h2>
+        
+        <h3>Spinner Types</h3>
+        <div class="spinner-grid">
+            <div class="spinner-demo">
+                <div class="spinner-default"></div>
+                <label>Default</label>
+            </div>
+            <div class="spinner-demo">
+                <div class="spinner-dual-ring"></div>
+                <label>Dual Ring</label>
+            </div>
+            <div class="spinner-demo">
+                <div class="spinner-dots">
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                </div>
+                <label>Dots</label>
+            </div>
+            <div class="spinner-demo">
+                <div class="spinner-pulse"></div>
+                <label>Pulse</label>
+            </div>
+            <div class="spinner-demo">
+                <div class="spinner-ripple">
+                    <div class="ripple"></div>
+                    <div class="ripple"></div>
+                </div>
+                <label>Ripple</label>
+            </div>
+            <div class="spinner-demo">
+                <div class="spinner-bars">
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                </div>
+                <label>Bars</label>
+            </div>
+            <div class="spinner-demo">
+                <div class="spinner-circular">
+                    <svg viewBox="0 0 50 50">
+                        <circle cx="25" cy="25" r="20"></circle>
+                    </svg>
+                </div>
+                <label>Circular</label>
+            </div>
+        </div>
+
+        <h3>Spinner Sizes</h3>
+        <div class="size-demo">
+            <div class="spinner-default loading-sm"></div>
+            <div class="spinner-default loading-md"></div>
+            <div class="spinner-default loading-lg"></div>
+            <div class="spinner-default loading-xl"></div>
+        </div>
+
+        <h3>Interactive Test</h3>
+        <div class="controls">
+            <button class="btn" onclick="testCustomLoading('default')">Show Default</button>
+            <button class="btn" onclick="testCustomLoading('dots')">Show Dots</button>
+            <button class="btn" onclick="testCustomLoading('pulse')">Show Pulse</button>
+            <button class="btn" onclick="testCustomLoading('bars')">Show Bars</button>
+            <button class="btn" onclick="clearTestContainer()">Clear</button>
+        </div>
+        <div id="spinner-test" class="test-container"></div>
+    </div>
+
+    <!-- 2. Skeleton Screens -->
+    <div class="test-section">
+        <h2>2. Skeleton Screens with Shimmer</h2>
+        
+        <h3>Basic Skeletons</h3>
+        <div class="skeleton-demo">
+            <div class="skeleton skeleton-title"></div>
+            <div class="skeleton skeleton-text"></div>
+            <div class="skeleton skeleton-text"></div>
+            <div class="skeleton skeleton-text" style="width: 80%;"></div>
+        </div>
+
+        <h3>Skeleton Card</h3>
+        <div class="skeleton-demo">
+            <div class="skeleton-card">
+                <div class="skeleton-card-header">
+                    <div class="skeleton skeleton-avatar"></div>
+                    <div class="skeleton skeleton-text" style="width: 60%;"></div>
+                </div>
+                <div class="skeleton-card-body">
+                    <div class="skeleton skeleton-text"></div>
+                    <div class="skeleton skeleton-text"></div>
+                    <div class="skeleton skeleton-text" style="width: 80%;"></div>
+                </div>
+            </div>
+        </div>
+
+        <h3>Skeleton FIR List</h3>
+        <div class="skeleton-demo">
+            <div class="skeleton-fir-list">
+                <div class="skeleton-fir-item">
+                    <div class="skeleton-fir-item-header">
+                        <div class="skeleton skeleton-fir-number"></div>
+                        <div class="skeleton skeleton-fir-status"></div>
+                    </div>
+                    <div class="skeleton-fir-details">
+                        <div class="skeleton skeleton-text skeleton-text-sm"></div>
+                        <div class="skeleton skeleton-text skeleton-text-sm"></div>
+                    </div>
+                </div>
+                <div class="skeleton-fir-item">
+                    <div class="skeleton-fir-item-header">
+                        <div class="skeleton skeleton-fir-number"></div>
+                        <div class="skeleton skeleton-fir-status"></div>
+                    </div>
+                    <div class="skeleton-fir-details">
+                        <div class="skeleton skeleton-text skeleton-text-sm"></div>
+                        <div class="skeleton skeleton-text skeleton-text-sm"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h3>Interactive Test</h3>
+        <div class="controls">
+            <button class="btn" onclick="testSkeleton('card')">Show Card Skeleton</button>
+            <button class="btn" onclick="testSkeleton('fir-list')">Show FIR List Skeleton</button>
+            <button class="btn" onclick="clearSkeletonTest()">Clear</button>
+        </div>
+        <div id="skeleton-test" class="test-container"></div>
+    </div>
+
+    <!-- 3. Progress Bars -->
+    <div class="test-section">
+        <h2>3. Progress Bar Animations</h2>
+        
+        <div class="progress-demo">
+            <div class="progress-demo-item">
+                <label>Animated Progress Bar</label>
+                <div class="progress-bar-animated">
+                    <div class="progress-fill-animated" style="width: 60%;"></div>
+                </div>
+            </div>
+
+            <div class="progress-demo-item">
+                <label>Striped Progress Bar</label>
+                <div class="progress-bar-striped">
+                    <div class="progress-fill-striped" style="width: 75%;"></div>
+                </div>
+            </div>
+
+            <div class="progress-demo-item">
+                <label>Indeterminate Progress Bar</label>
+                <div class="progress-bar-indeterminate"></div>
+            </div>
+        </div>
+
+        <h3>Interactive Test</h3>
+        <div class="controls">
+            <button class="btn" onclick="testProgressBar()">Simulate Upload</button>
+            <button class="btn" onclick="resetProgressBar()">Reset</button>
+        </div>
+        <div id="progress-test" class="test-container">
+            <div id="progress-bar-container"></div>
+        </div>
+    </div>
+
+    <!-- 4. Success/Error Animations -->
+    <div class="test-section">
+        <h2>4. Success/Error Animations</h2>
+        
+        <div class="animation-grid">
+            <div class="animation-demo">
+                <div class="success-animation">
+                    <div class="success-checkmark"></div>
+                </div>
+                <label>Success</label>
+            </div>
+            <div class="animation-demo">
+                <div class="error-animation">
+                    <div class="error-x"></div>
+                </div>
+                <label>Error</label>
+            </div>
+            <div class="animation-demo">
+                <div class="warning-animation">
+                    <div class="warning-icon"></div>
+                </div>
+                <label>Warning</label>
+            </div>
+            <div class="animation-demo">
+                <div class="info-animation">
+                    <div class="info-icon"></div>
+                </div>
+                <label>Info</label>
+            </div>
+        </div>
+
+        <h3>Interactive Test</h3>
+        <div class="controls">
+            <button class="btn" onclick="testAnimation('success')">Show Success</button>
+            <button class="btn" onclick="testAnimation('error')">Show Error</button>
+            <button class="btn" onclick="testAnimation('warning')">Show Warning</button>
+            <button class="btn" onclick="testAnimation('info')">Show Info</button>
+        </div>
+        <div id="animation-test" class="test-container"></div>
+    </div>
+
+    <script src="js/loading-animations.js"></script>
+    <script>
+        // Test custom loading
+        function testCustomLoading(type) {
+            const container = document.getElementById('spinner-test');
+            container.innerHTML = '';
+            window.LoadingAnimations.showCustomLoading(container, {
+                type: type,
+                message: `Loading with ${type} spinner...`,
+                overlay: false
+            });
+        }
+
+        function clearTestContainer() {
+            document.getElementById('spinner-test').innerHTML = '';
+        }
+
+        // Test skeleton
+        function testSkeleton(type) {
+            const container = document.getElementById('skeleton-test');
+            container.innerHTML = '';
+            window.LoadingAnimations.showSkeleton(container, {
+                type: type,
+                count: type === 'fir-list' ? 3 : 2
+            });
+        }
+
+        function clearSkeletonTest() {
+            document.getElementById('skeleton-test').innerHTML = '';
+        }
+
+        // Test progress bar
+        let progressInterval;
+        function testProgressBar() {
+            const container = document.getElementById('progress-bar-container');
+            container.innerHTML = '';
+            
+            const progressBar = window.LoadingAnimations.createProgressBar({
+                type: 'animated',
+                percentage: 0,
+                showText: true
+            });
+            
+            container.appendChild(progressBar);
+            
+            let progress = 0;
+            clearInterval(progressInterval);
+            progressInterval = setInterval(() => {
+                progress += 5;
+                window.LoadingAnimations.updateProgressBar(progressBar, progress);
+                
+                if (progress >= 100) {
+                    clearInterval(progressInterval);
+                }
+            }, 200);
+        }
+
+        function resetProgressBar() {
+            clearInterval(progressInterval);
+            document.getElementById('progress-bar-container').innerHTML = '';
+        }
+
+        // Test animations
+        function testAnimation(type) {
+            const container = document.getElementById('animation-test');
+            container.innerHTML = '';
+            
+            const messages = {
+                success: 'Operation completed successfully!',
+                error: 'An error occurred!',
+                warning: 'Please be careful!',
+                info: 'Here is some information.'
+            };
+            
+            const animationFunctions = {
+                success: window.LoadingAnimations.showSuccessAnimation,
+                error: window.LoadingAnimations.showErrorAnimation,
+                warning: window.LoadingAnimations.showWarningAnimation,
+                info: window.LoadingAnimations.showInfoAnimation
+            };
+            
+            animationFunctions[type](container, {
+                message: messages[type],
+                duration: 3000
+            });
+        }
+
+        // Log test results
+        console.log('Loading Animations Test Suite loaded');
+        console.log('Available functions:', Object.keys(window.LoadingAnimations));
+    </script>
+</body>
+</html>

@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Morphing Transitions Test - AFIRGen</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/themes.css">
+    <link rel="stylesheet" href="css/morphing-transitions.css">
+    <style>
+        body {
+            padding: 2rem;
+            background: #0a0a0a;
+            color: #e5e5e5;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .test-section {
+            margin-bottom: 3rem;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+        }
+
+        .test-section h2 {
+            margin-bottom: 1rem;
+            color: #fff;
+        }
+
+        .test-section p {
+            margin-bottom: 1rem;
+            color: #a0a0a0;
+        }
+
+        /* Card Flip Demo */
+        .demo-card {
+            width: 300px;
+            height: 200px;
+            margin: 1rem 0;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .demo-card .fir-item-front,
+        .demo-card .fir-item-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .demo-card .fir-item-back {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        /* Expandable Demo */
+        .demo-expandable {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+
+        .expand-trigger {
+            cursor: pointer;
+            padding: 0.5rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        .expand-content {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        /* Accordion Demo */
+        .demo-accordion {
+            margin: 1rem 0;
+        }
+
+        .accordion-item {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            overflow: hidden;
+        }
+
+        .accordion-header {
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .accordion-content {
+            padding: 0 1rem;
+        }
+
+        .accordion-content-inner {
+            padding: 1rem 0;
+        }
+
+        .accordion-icon {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Button Demo */
+        .demo-buttons {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .demo-btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 4px;
+            background: #3b82f6;
+            color: white;
+            cursor: pointer;
+            font-size: 1rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Status Badge Demo */
+        .demo-badges {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .status-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: white;
+        }
+
+        /* Progress Bar Demo */
+        .demo-progress {
+            margin: 1rem 0;
+        }
+
+        .progress-controls {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .progress-controls button {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            cursor: pointer;
+        }
+
+        /* List Demo */
+        .demo-list {
+            margin: 1rem 0;
+        }
+
+        .list-item {
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+        }
+
+        .list-controls {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .list-controls button {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            cursor: pointer;
+        }
+
+        /* Search Demo */
+        .demo-search {
+            margin: 1rem 0;
+        }
+
+        .search-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 0.75rem 2.5rem 0.75rem 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            color: white;
+            font-size: 1rem;
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border-width: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Morphing Transitions Test</h1>
+    <p>Testing smooth morphing transitions and animations for AFIRGen frontend.</p>
+
+    <!-- Card Flip Test -->
+    <div class="test-section">
+        <h2>1. Card Flip Animation</h2>
+        <p>Double-click or press Enter to flip the card. Uses 3D transforms for smooth 60fps animation.</p>
+        <div class="demo-card fir-item" tabindex="0" role="button" aria-label="Flip card">
+            <div class="fir-item-front">
+                Front Side
+            </div>
+            <div class="fir-item-back">
+                Back Side
+            </div>
+        </div>
+    </div>
+
+    <!-- Expand/Collapse Test -->
+    <div class="test-section">
+        <h2>2. Expand/Collapse Animation</h2>
+        <p>Click the trigger to expand or collapse the content smoothly.</p>
+        <div class="demo-expandable" data-expandable>
+            <div class="expand-trigger" data-expand-trigger role="button" tabindex="0" aria-expanded="false">
+                Click to Expand
+            </div>
+            <div class="expand-content expandable collapsed" data-expand-content>
+                <div class="expandable-content">
+                    This is the expandable content. It smoothly expands and collapses using CSS transforms
+                    and max-height transitions. The animation is optimized for 60fps performance using
+                    GPU acceleration.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Accordion Test -->
+    <div class="test-section">
+        <h2>3. Accordion Animation</h2>
+        <p>Click accordion headers to expand/collapse. Only one item can be open at a time.</p>
+        <div class="demo-accordion" data-accordion-group>
+            <div class="accordion-item">
+                <div class="accordion-header" role="button" tabindex="0" aria-expanded="false">
+                    <span>Accordion Item 1</span>
+                    <svg class="accordion-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </div>
+                <div class="accordion-content" aria-hidden="true">
+                    <div class="accordion-content-inner">
+                        Content for accordion item 1. This content smoothly expands and collapses.
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <div class="accordion-header" role="button" tabindex="0" aria-expanded="false">
+                    <span>Accordion Item 2</span>
+                    <svg class="accordion-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </div>
+                <div class="accordion-content" aria-hidden="true">
+                    <div class="accordion-content-inner">
+                        Content for accordion item 2. Opening this will close the other accordion.
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <div class="accordion-header" role="button" tabindex="0" aria-expanded="false">
+                    <span>Accordion Item 3</span>
+                    <svg class="accordion-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </div>
+                <div class="accordion-content" aria-hidden="true">
+                    <div class="accordion-content-inner">
+                        Content for accordion item 3. Smooth transitions with GPU acceleration.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Button Morph Test -->
+    <div class="test-section">
+        <h2>4. Button Morphing</h2>
+        <p>Click buttons to see ripple effects and loading state morphing.</p>
+        <div class="demo-buttons">
+            <button class="demo-btn btn-morph">
+                <span class="btn-text">Click Me</span>
+            </button>
+            <button class="demo-btn btn-morph" id="loading-btn">
+                <span class="btn-text">Toggle Loading</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Status Badge Test -->
+    <div class="test-section">
+        <h2>5. Status Badge Morphing</h2>
+        <p>Click badges to morph between different status states.</p>
+        <div class="demo-badges">
+            <div class="status-badge pending" role="button" tabindex="0" data-status="pending">Pending</div>
+            <div class="status-badge investigating" role="button" tabindex="0" data-status="investigating">Investigating</div>
+            <div class="status-badge closed" role="button" tabindex="0" data-status="closed">Closed</div>
+        </div>
+    </div>
+
+    <!-- Progress Bar Test -->
+    <div class="test-section">
+        <h2>6. Progress Bar Animation</h2>
+        <p>Click buttons to animate the progress bar smoothly.</p>
+        <div class="demo-progress">
+            <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-fill" style="width: 0%"></div>
+            </div>
+            <div class="progress-controls">
+                <button data-progress="25">25%</button>
+                <button data-progress="50">50%</button>
+                <button data-progress="75">75%</button>
+                <button data-progress="100">100%</button>
+                <button data-progress="0">Reset</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- List Animation Test -->
+    <div class="test-section">
+        <h2>7. List Item Animations</h2>
+        <p>Add or remove items to see smooth list animations.</p>
+        <div class="demo-list" data-animated-list id="animated-list">
+            <div class="list-item">List Item 1</div>
+            <div class="list-item">List Item 2</div>
+            <div class="list-item">List Item 3</div>
+        </div>
+        <div class="list-controls">
+            <button id="add-item-btn">Add Item</button>
+            <button id="remove-item-btn">Remove Last Item</button>
+        </div>
+    </div>
+
+    <!-- Search Morph Test -->
+    <div class="test-section">
+        <h2>8. Search Bar Morphing</h2>
+        <p>Focus the search bar to see it morph and scale slightly.</p>
+        <div class="demo-search">
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search..." aria-label="Search">
+                <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/morphing-transitions.js"></script>
+    <script>
+        // Additional test interactions
+        document.addEventListener('DOMContentLoaded', () => {
+            // Loading button test
+            const loadingBtn = document.getElementById('loading-btn');
+            let isLoading = false;
+            
+            loadingBtn.addEventListener('click', () => {
+                if (isLoading) {
+                    window.morphingInstance.morphFromLoading(loadingBtn);
+                    isLoading = false;
+                } else {
+                    window.morphingInstance.morphToLoading(loadingBtn);
+                    isLoading = true;
+                }
+            });
+
+            // Status badge cycling
+            const badges = document.querySelectorAll('.status-badge');
+            const statuses = ['pending', 'investigating', 'closed'];
+            
+            badges.forEach(badge => {
+                badge.addEventListener('click', () => {
+                    const currentStatus = badge.getAttribute('data-status');
+                    const currentIndex = statuses.indexOf(currentStatus);
+                    const nextIndex = (currentIndex + 1) % statuses.length;
+                    const nextStatus = statuses[nextIndex];
+                    
+                    badge.setAttribute('data-status', nextStatus);
+                    window.morphingInstance.morphStatusBadge(badge, nextStatus);
+                });
+            });
+
+            // Progress bar controls
+            const progressBar = document.querySelector('.progress-bar');
+            const progressButtons = document.querySelectorAll('[data-progress]');
+            
+            progressButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const percentage = parseInt(button.getAttribute('data-progress'));
+                    window.morphingInstance.animateProgress(progressBar, percentage);
+                });
+            });
+
+            // List item controls
+            const animatedList = document.getElementById('animated-list');
+            const addItemBtn = document.getElementById('add-item-btn');
+            const removeItemBtn = document.getElementById('remove-item-btn');
+            let itemCount = 3;
+            
+            addItemBtn.addEventListener('click', () => {
+                itemCount++;
+                const newItem = document.createElement('div');
+                newItem.className = 'list-item';
+                newItem.textContent = `List Item ${itemCount}`;
+                animatedList.appendChild(newItem);
+            });
+            
+            removeItemBtn.addEventListener('click', () => {
+                const items = animatedList.querySelectorAll('.list-item');
+                if (items.length > 0) {
+                    const lastItem = items[items.length - 1];
+                    window.morphingInstance.animateListItemRemove(lastItem, () => {
+                        lastItem.remove();
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

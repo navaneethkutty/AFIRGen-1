@@ -96,7 +96,7 @@ describe('Property 3: API Request Retry', () => {
             error.status = response.status;
             throw error;
           }
-          return await response.json();
+          return response.json();
         });
       }
     };

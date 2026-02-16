@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cursor Effects Test - AFIRGen</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/cursor-effects.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      color: white;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+
+    h1 {
+      font-size: 3rem;
+      margin-bottom: 10px;
+      text-align: center;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .subtitle {
+      text-align: center;
+      font-size: 1.2rem;
+      margin-bottom: 40px;
+      opacity: 0.9;
+    }
+
+    .test-section {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 30px;
+      margin-bottom: 30px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .test-section h2 {
+      margin-top: 0;
+      font-size: 1.8rem;
+      margin-bottom: 20px;
+    }
+
+    .test-section p {
+      line-height: 1.6;
+      margin-bottom: 20px;
+      opacity: 0.9;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    button {
+      padding: 15px 30px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      transition: all 0.3s ease;
+      font-weight: 600;
+    }
+
+    button:hover {
+      background: rgba(255, 255, 255, 0.3);
+      border-color: rgba(255, 255, 255, 0.5);
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .primary-btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+    }
+
+    .primary-btn:hover {
+      background: linear-gradient(135deg, #5568d3 0%, #65408b 100%);
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .metric-card {
+      background: rgba(0, 0, 0, 0.2);
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+    }
+
+    .metric-value {
+      font-size: 2rem;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .metric-label {
+      font-size: 0.9rem;
+      opacity: 0.8;
+    }
+
+    .interactive-area {
+      background: rgba(255, 255, 255, 0.05);
+      border: 2px dashed rgba(255, 255, 255, 0.3);
+      border-radius: 15px;
+      padding: 60px;
+      text-align: center;
+      margin: 20px 0;
+      min-height: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      transition: all 0.3s ease;
+    }
+
+    .interactive-area:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.5);
+    }
+
+    .status {
+      display: inline-block;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-left: 10px;
+    }
+
+    .status.active {
+      background: rgba(0, 255, 0, 0.2);
+      color: #00ff00;
+      border: 1px solid rgba(0, 255, 0, 0.5);
+    }
+
+    .status.inactive {
+      background: rgba(255, 0, 0, 0.2);
+      color: #ff6b6b;
+      border: 1px solid rgba(255, 0, 0, 0.5);
+    }
+
+    .info-box {
+      background: rgba(255, 255, 255, 0.1);
+      border-left: 4px solid rgba(255, 255, 255, 0.5);
+      padding: 15px 20px;
+      margin: 20px 0;
+      border-radius: 5px;
+    }
+
+    .info-box strong {
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    @media (max-width: 768px) {
+      h1 {
+        font-size: 2rem;
+      }
+
+      .test-section {
+        padding: 20px;
+      }
+
+      .button-group {
+        flex-direction: column;
+      }
+
+      button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🖱️ Cursor Effects Test</h1>
+    <p class="subtitle">Move your mouse and click to see the effects in action</p>
+
+    <!-- Status Section -->
+    <div class="test-section">
+      <h2>Status <span id="status" class="status inactive">Inactive</span></h2>
+      <p>Cursor effects are automatically initialized on page load (desktop only).</p>
+      <div class="info-box">
+        <strong>Note:</strong> Cursor effects are disabled on mobile devices and when "prefers-reduced-motion" is enabled for accessibility.
+      </div>
+    </div>
+
+    <!-- Interactive Test Area -->
+    <div class="test-section">
+      <h2>Interactive Test Area</h2>
+      <p>Move your mouse around and click in the area below to see the cursor effects:</p>
+      <div class="interactive-area" id="testArea">
+        Move your cursor here and click to see ripple effects!
+      </div>
+      <p><strong>Effects you should see:</strong></p>
+      <ul>
+        <li><strong>Cursor Trail:</strong> Fading particles following your cursor</li>
+        <li><strong>Glow Effect:</strong> Subtle glow around your cursor</li>
+        <li><strong>Ripple Effect:</strong> Expanding rings when you click</li>
+      </ul>
+    </div>
+
+    <!-- Controls -->
+    <div class="test-section">
+      <h2>Controls</h2>
+      <div class="button-group">
+        <button onclick="testClearEffects()" class="primary-btn">Clear Effects</button>
+        <button onclick="testStopEffects()">Stop Effects</button>
+        <button onclick="testRestartEffects()">Restart Effects</button>
+        <button onclick="testMultipleClicks()">Trigger Multiple Ripples</button>
+      </div>
+    </div>
+
+    <!-- Performance Metrics -->
+    <div class="test-section">
+      <h2>Performance Metrics</h2>
+      <div class="metrics">
+        <div class="metric-card">
+          <div class="metric-value" id="fps">--</div>
+          <div class="metric-label">FPS</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" id="trailCount">--</div>
+          <div class="metric-label">Trail Particles</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" id="rippleCount">--</div>
+          <div class="metric-label">Active Ripples</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" id="deviceType">--</div>
+          <div class="metric-label">Device Type</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature Details -->
+    <div class="test-section">
+      <h2>Feature Details</h2>
+      <h3>Cursor Trail</h3>
+      <p>A smooth trail of fading particles follows your cursor as you move. The trail adapts to the current theme (light/dark mode).</p>
+      
+      <h3>Ripple Effect</h3>
+      <p>When you click anywhere on the page, an expanding ripple effect emanates from the click position. Multiple ripples can be active simultaneously.</p>
+      
+      <h3>Glow Effect</h3>
+      <p>A subtle glow follows your cursor, creating a soft ambient light effect that enhances the visual experience.</p>
+      
+      <h3>Mobile Detection</h3>
+      <p>Cursor effects are automatically disabled on mobile devices and tablets to ensure optimal performance and avoid unnecessary effects on touch devices.</p>
+    </div>
+  </div>
+
+  <script src="js/cursor-effects.js"></script>
+  <script>
+    // Update status
+    function updateStatus() {
+      const statusEl = document.getElementById('status');
+      const canvas = document.getElementById('cursor-effects-canvas');
+      
+      if (canvas && window.cursorEffects && window.cursorEffects.isRunning) {
+        statusEl.textContent = 'Active';
+        statusEl.className = 'status active';
+      } else {
+        statusEl.textContent = 'Inactive';
+        statusEl.className = 'status inactive';
+      }
+    }
+
+    // Update device type
+    function updateDeviceType() {
+      const deviceEl = document.getElementById('deviceType');
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                       window.matchMedia('(max-width: 768px)').matches;
+      deviceEl.textContent = isMobile ? 'Mobile' : 'Desktop';
+    }
+
+    // Performance monitoring
+    let lastTime = performance.now();
+    let frameCount = 0;
+
+    function updateMetrics() {
+      const now = performance.now();
+      frameCount++;
+
+      // Update FPS every second
+      if (now - lastTime >= 1000) {
+        const fps = Math.round((frameCount * 1000) / (now - lastTime));
+        document.getElementById('fps').textContent = fps;
+        frameCount = 0;
+        lastTime = now;
+      }
+
+      // Update particle counts
+      if (window.cursorEffects) {
+        document.getElementById('trailCount').textContent = window.cursorEffects.trails.length;
+        document.getElementById('rippleCount').textContent = window.cursorEffects.ripples.length;
+      }
+
+      requestAnimationFrame(updateMetrics);
+    }
+
+    // Test functions
+    function testClearEffects() {
+      if (window.clearCursorEffects) {
+        window.clearCursorEffects();
+        console.log('Cursor effects cleared');
+      }
+    }
+
+    function testStopEffects() {
+      if (window.stopCursorEffects) {
+        window.stopCursorEffects();
+        console.log('Cursor effects stopped');
+        updateStatus();
+      }
+    }
+
+    function testRestartEffects() {
+      if (window.cursorEffects) {
+        window.cursorEffects.isRunning = true;
+        window.cursorEffects.animate();
+        console.log('Cursor effects restarted');
+        updateStatus();
+      }
+    }
+
+    function testMultipleClicks() {
+      if (window.cursorEffects) {
+        const centerX = window.innerWidth / 2;
+        const centerY = window.innerHeight / 2;
+        
+        // Create multiple ripples in a circle pattern
+        for (let i = 0; i < 8; i++) {
+          const angle = (Math.PI * 2 * i) / 8;
+          const radius = 100;
+          const x = centerX + Math.cos(angle) * radius;
+          const y = centerY + Math.sin(angle) * radius;
+          
+          setTimeout(() => {
+            window.cursorEffects.addRipple(x, y);
+          }, i * 100);
+        }
+      }
+    }
+
+    // Initialize
+    setTimeout(() => {
+      updateStatus();
+      updateDeviceType();
+      updateMetrics();
+    }, 100);
+
+    // Update status periodically
+    setInterval(updateStatus, 1000);
+  </script>
+</body>
+</html>

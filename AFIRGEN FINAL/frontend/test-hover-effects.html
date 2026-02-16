@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hover Effects Test - AFIRGen</title>
+  <link rel="stylesheet" href="css/hover-effects.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+      color: #333;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      text-align: center;
+      color: white;
+      margin-bottom: 40px;
+      font-size: 2.5rem;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .section {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      margin-bottom: 30px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .section h2 {
+      margin-bottom: 20px;
+      color: #333;
+      font-size: 1.5rem;
+      border-bottom: 2px solid #007bff;
+      padding-bottom: 10px;
+    }
+
+    .section p {
+      margin-bottom: 20px;
+      color: #666;
+      line-height: 1.6;
+    }
+
+    .demo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .demo-item {
+      padding: 30px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      text-align: center;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .demo-item h3 {
+      margin-bottom: 10px;
+      font-size: 1.1rem;
+      color: #333;
+    }
+
+    .demo-item p {
+      font-size: 0.9rem;
+      color: #666;
+      margin: 0;
+    }
+
+    .button-demo {
+      display: inline-block;
+      padding: 12px 24px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+      margin: 10px;
+      text-decoration: none;
+    }
+
+    .button-demo.success {
+      background: #28a745;
+    }
+
+    .button-demo.danger {
+      background: #dc3545;
+    }
+
+    .button-demo.warning {
+      background: #ffc107;
+      color: #000;
+    }
+
+    .button-demo.outline {
+      background: transparent;
+      border: 2px solid #007bff;
+      color: #007bff;
+    }
+
+    .card-demo {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .card-demo h4 {
+      margin-bottom: 10px;
+      color: #333;
+    }
+
+    .card-demo p {
+      color: #666;
+      font-size: 0.9rem;
+      margin: 0;
+    }
+
+    .controls {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .controls label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+
+    .controls input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .dark-mode {
+      background: #1a1a1a;
+      color: #e5e5e5;
+    }
+
+    .dark-mode .section {
+      background: #2a2a2a;
+    }
+
+    .dark-mode .section h2 {
+      color: #e5e5e5;
+      border-bottom-color: #64b5f6;
+    }
+
+    .dark-mode .section p {
+      color: #b0b0b0;
+    }
+
+    .dark-mode .demo-item {
+      background: #333;
+    }
+
+    .dark-mode .demo-item h3 {
+      color: #e5e5e5;
+    }
+
+    .dark-mode .demo-item p {
+      color: #b0b0b0;
+    }
+
+    .dark-mode .card-demo {
+      background: #333;
+    }
+
+    .dark-mode .card-demo h4 {
+      color: #e5e5e5;
+    }
+
+    .dark-mode .card-demo p {
+      color: #b0b0b0;
+    }
+
+    .dark-mode .controls {
+      background: #333;
+    }
+
+    .fps-counter {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 10px 15px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 14px;
+      z-index: 1000;
+    }
+
+    .fps-counter.good {
+      background: rgba(40, 167, 69, 0.9);
+    }
+
+    .fps-counter.warning {
+      background: rgba(255, 193, 7, 0.9);
+    }
+
+    .fps-counter.bad {
+      background: rgba(220, 53, 69, 0.9);
+    }
+  </style>
+</head>
+<body>
+  <div class="fps-counter" id="fpsCounter">FPS: --</div>
+
+  <div class="container">
+    <h1>Hover Effects Test Suite</h1>
+
+    <div class="controls">
+      <label>
+        <input type="checkbox" id="darkModeToggle">
+        Dark Mode
+      </label>
+      <label>
+        <input type="checkbox" id="reducedMotionToggle">
+        Reduced Motion
+      </label>
+      <label>
+        <input type="checkbox" id="showFpsToggle" checked>
+        Show FPS Counter
+      </label>
+    </div>
+
+    <!-- Scale and Glow Effects -->
+    <div class="section">
+      <h2>1. Scale and Glow Effects</h2>
+      <p>Hover over the buttons to see scale and glow effects with different color variants.</p>
+      <div style="text-align: center;">
+        <button class="button-demo hover-scale-glow">Primary Glow</button>
+        <button class="button-demo success hover-scale-glow">Success Glow</button>
+        <button class="button-demo danger hover-scale-glow">Danger Glow</button>
+        <button class="button-demo warning hover-scale-glow">Warning Glow</button>
+      </div>
+    </div>
+
+    <!-- Shadow Lift Effects -->
+    <div class="section">
+      <h2>2. Shadow Lift Effects</h2>
+      <p>Hover over the cards to see them lift with shadow effects.</p>
+      <div class="demo-grid">
+        <div class="card-demo hover-lift">
+          <h4>Default Lift</h4>
+          <p>Standard lift effect with medium shadow</p>
+        </div>
+        <div class="card-demo hover-lift subtle">
+          <h4>Subtle Lift</h4>
+          <p>Gentle lift with lighter shadow</p>
+        </div>
+        <div class="card-demo hover-lift strong">
+          <h4>Strong Lift</h4>
+          <p>Dramatic lift with deep shadow</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Magnetic Button Effects -->
+    <div class="section">
+      <h2>3. Magnetic Button Effects</h2>
+      <p>Move your mouse near the buttons to see them follow your cursor.</p>
+      <div style="text-align: center; padding: 40px;">
+        <button class="button-demo hover-magnetic" id="magnetic1">Magnetic Button 1</button>
+        <button class="button-demo success hover-magnetic" id="magnetic2">Magnetic Button 2</button>
+        <button class="button-demo danger hover-magnetic" id="magnetic3">Magnetic Button 3</button>
+      </div>
+    </div>
+
+    <!-- Color Transition Effects -->
+    <div class="section">
+      <h2>4. Color Transition Effects</h2>
+      <p>Hover over the buttons to see smooth color transitions.</p>
+      <div style="text-align: center;">
+        <button class="button-demo outline hover-color-primary">Primary Color</button>
+        <button class="button-demo outline hover-color-success">Success Color</button>
+        <button class="button-demo outline hover-color-danger">Danger Color</button>
+        <button class="button-demo outline hover-color-warning">Warning Color</button>
+      </div>
+    </div>
+
+    <!-- Combined Effects -->
+    <div class="section">
+      <h2>5. Combined Effects (Lift + Glow)</h2>
+      <p>Hover over the cards to see combined lift and glow effects.</p>
+      <div class="demo-grid">
+        <div class="card-demo hover-lift-glow">
+          <h4>Combined Effect 1</h4>
+          <p>Lift with blue glow</p>
+        </div>
+        <div class="card-demo hover-lift-glow">
+          <h4>Combined Effect 2</h4>
+          <p>Smooth transition</p>
+        </div>
+        <div class="card-demo hover-lift-glow">
+          <h4>Combined Effect 3</h4>
+          <p>GPU accelerated</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Border Glow Effects -->
+    <div class="section">
+      <h2>6. Border Glow Effects</h2>
+      <p>Hover over the items to see glowing borders.</p>
+      <div class="demo-grid">
+        <div class="demo-item hover-border-glow">
+          <h3>Border Glow 1</h3>
+          <p>Glowing border effect</p>
+        </div>
+        <div class="demo-item hover-border-glow">
+          <h3>Border Glow 2</h3>
+          <p>Smooth transition</p>
+        </div>
+        <div class="demo-item hover-border-glow">
+          <h3>Border Glow 3</h3>
+          <p>Accessible focus</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shine Effect -->
+    <div class="section">
+      <h2>7. Shine Effect</h2>
+      <p>Hover over the buttons to see a shine animation.</p>
+      <div style="text-align: center;">
+        <button class="button-demo hover-shine">Shine Effect 1</button>
+        <button class="button-demo success hover-shine">Shine Effect 2</button>
+        <button class="button-demo danger hover-shine">Shine Effect 3</button>
+      </div>
+    </div>
+
+    <!-- Pulse Effect -->
+    <div class="section">
+      <h2>8. Pulse Effect</h2>
+      <p>Hover over the buttons to see a pulsing glow animation.</p>
+      <div style="text-align: center;">
+        <button class="button-demo hover-pulse">Pulse Effect 1</button>
+        <button class="button-demo success hover-pulse">Pulse Effect 2</button>
+        <button class="button-demo danger hover-pulse">Pulse Effect 3</button>
+      </div>
+    </div>
+
+    <!-- Performance Info -->
+    <div class="section">
+      <h2>Performance Information</h2>
+      <p>
+        All hover effects are optimized for 60fps performance using GPU acceleration (transform and opacity).
+        The FPS counter in the top-right shows real-time performance.
+      </p>
+      <ul style="margin-left: 20px; color: #666;">
+        <li>✓ GPU accelerated transforms</li>
+        <li>✓ Respects prefers-reduced-motion</li>
+        <li>✓ Touch device support</li>
+        <li>✓ Dark mode compatible</li>
+        <li>✓ Accessible focus states</li>
+      </ul>
+    </div>
+  </div>
+
+  <script src="js/hover-effects.js"></script>
+  <script>
+    // Dark mode toggle
+    const darkModeToggle = document.getElementById('darkModeToggle');
+    darkModeToggle.addEventListener('change', (e) => {
+      document.body.classList.toggle('dark-mode', e.target.checked);
+    });
+
+    // Reduced motion toggle
+    const reducedMotionToggle = document.getElementById('reducedMotionToggle');
+    reducedMotionToggle.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        document.body.style.setProperty('--reduced-motion', 'reduce');
+        if (window.hoverEffects) {
+          window.hoverEffects.reducedMotion = true;
+          window.hoverEffects.disableAllEffects();
+        }
+      } else {
+        document.body.style.removeProperty('--reduced-motion');
+        if (window.hoverEffects) {
+          window.hoverEffects.reducedMotion = false;
+        }
+      }
+    });
+
+    // FPS counter toggle
+    const showFpsToggle = document.getElementById('showFpsToggle');
+    const fpsCounter = document.getElementById('fpsCounter');
+    showFpsToggle.addEventListener('change', (e) => {
+      fpsCounter.style.display = e.target.checked ? 'block' : 'none';
+    });
+
+    // FPS counter
+    let lastTime = performance.now();
+    let frames = 0;
+    let fps = 0;
+
+    function updateFPS() {
+      const currentTime = performance.now();
+      frames++;
+
+      if (currentTime >= lastTime + 1000) {
+        fps = Math.round((frames * 1000) / (currentTime - lastTime));
+        frames = 0;
+        lastTime = currentTime;
+
+        fpsCounter.textContent = `FPS: ${fps}`;
+        
+        // Color code based on FPS
+        fpsCounter.classList.remove('good', 'warning', 'bad');
+        if (fps >= 55) {
+          fpsCounter.classList.add('good');
+        } else if (fps >= 30) {
+          fpsCounter.classList.add('warning');
+        } else {
+          fpsCounter.classList.add('bad');
+        }
+      }
+
+      requestAnimationFrame(updateFPS);
+    }
+
+    updateFPS();
+
+    // Initialize magnetic effects when hover effects are ready
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.hoverEffects) {
+        // Initialize magnetic buttons
+        window.hoverEffects.init('#magnetic1', 'magnetic', { strength: 0.3, maxDistance: 50 });
+        window.hoverEffects.init('#magnetic2', 'magnetic', { strength: 0.4, maxDistance: 60 });
+        window.hoverEffects.init('#magnetic3', 'magnetic', { strength: 0.5, maxDistance: 70 });
+      }
+    });
+
+    // Keyboard accessibility
+    document.querySelectorAll('.button-demo, .card-demo, .demo-item').forEach(element => {
+      element.setAttribute('tabindex', '0');
+      element.setAttribute('role', 'button');
+      
+      element.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          element.click();
+        }
+      });
+    });
+  </script>
+</body>
+</html>

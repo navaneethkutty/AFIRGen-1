@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animation Performance Test - AFIRGen</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/themes.css">
+    <style>
+        .test-container {
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .test-section {
+            margin-bottom: 3rem;
+            padding: 2rem;
+            background: rgba(30, 30, 30, 0.7);
+            border: 1px solid rgba(75, 75, 75, 0.3);
+            border-radius: 16px;
+        }
+        
+        .test-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: white;
+            margin-bottom: 1rem;
+        }
+        
+        .test-description {
+            color: rgba(200, 200, 200, 1);
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+        
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        
+        .performance-info {
+            background: rgba(59, 130, 246, 0.15);
+            border: 1px solid rgba(59, 130, 246, 0.5);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .performance-info h3 {
+            color: #3b82f6;
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+        }
+        
+        .performance-info p {
+            color: rgba(200, 200, 200, 1);
+            font-size: 0.875rem;
+            margin: 0;
+        }
+        
+        .fps-counter {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid rgba(75, 75, 75, 0.5);
+            border-radius: 8px;
+            padding: 1rem;
+            color: white;
+            font-family: monospace;
+            z-index: 1000;
+        }
+        
+        .fps-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #22c55e;
+        }
+        
+        .fps-label {
+            font-size: 0.875rem;
+            color: rgba(200, 200, 200, 1);
+        }
+        
+        .reduced-motion-toggle {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid rgba(75, 75, 75, 0.5);
+            border-radius: 8px;
+            padding: 1rem;
+            z-index: 1000;
+        }
+        
+        .toggle-label {
+            color: white;
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+        
+        .toggle-button {
+            padding: 0.5rem 1rem;
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.5);
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+        
+        .toggle-button:hover {
+            background: rgba(59, 130, 246, 0.3);
+        }
+        
+        .toggle-button.active {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <!-- FPS Counter -->
+    <div class="fps-counter">
+        <div class="fps-value" id="fps-value">60</div>
+        <div class="fps-label">FPS</div>
+    </div>
+    
+    <!-- Reduced Motion Toggle -->
+    <div class="reduced-motion-toggle">
+        <label class="toggle-label">Reduced Motion</label>
+        <button class="toggle-button" id="reduced-motion-toggle">
+            OFF
+        </button>
+    </div>
+    
+    <div class="test-container">
+        <h1 style="color: white; font-size: 2.5rem; margin-bottom: 1rem;">Animation Performance Test</h1>
+        <p style="color: rgba(200, 200, 200, 1); margin-bottom: 2rem;">
+            This page tests the animation performance optimizations implemented in Task 24.3.
+            Hover over elements to trigger animations and monitor the FPS counter.
+        </p>
+        
+        <!-- Performance Info -->
+        <div class="performance-info">
+            <h3>✅ Optimizations Applied</h3>
+            <p>
+                • CSS transforms instead of position properties<br>
+                • will-change hints for animated elements<br>
+                • Specific transition properties (no "transition: all")<br>
+                • prefers-reduced-motion support
+            </p>
+        </div>
+        
+        <!-- Test Section 1: Buttons -->
+        <div class="test-section">
+            <h2 class="test-title">1. Button Animations</h2>
+            <p class="test-description">
+                Hover over buttons to test lift, shadow, and ripple effects.
+                All animations use CSS transforms for GPU acceleration.
+            </p>
+            <div class="test-grid">
+                <button class="generate-btn">
+                    <span>Primary Button</span>
+                </button>
+                <button class="btn-secondary">Secondary Button</button>
+                <button class="toast-button">Toast Button</button>
+                <button class="copy-btn">Copy Button</button>
+            </div>
+        </div>
+        
+        <!-- Test Section 2: Cards -->
+        <div class="test-section">
+            <h2 class="test-title">2. Card Animations</h2>
+            <p class="test-description">
+                Hover over cards to test lift, scale, and glow effects.
+                Uses transform: translateY() and scale() for smooth 60fps animations.
+            </p>
+            <div class="test-grid">
+                <div class="fir-item">
+                    <div class="fir-number">FIR #12345</div>
+                    <div class="fir-complainant">John Doe</div>
+                    <div class="fir-status status-investigating">Investigating</div>
+                </div>
+                <div class="step-item">
+                    <div class="step-title">Step Card</div>
+                    <div class="step-description">Hover to see lift effect</div>
+                </div>
+                <div class="resource-category">
+                    <div class="resource-category-title">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <circle cx="12" cy="12" r="10"/>
+                        </svg>
+                        Resource Card
+                    </div>
+                    <div class="resource-list">
+                        <div class="resource-item">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="9 11 12 14 22 4"/>
+                            </svg>
+                            <span>Item 1</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Test Section 3: Inputs -->
+        <div class="test-section">
+            <h2 class="test-title">3. Input Animations</h2>
+            <p class="test-description">
+                Focus on inputs to test glow and lift effects.
+                Uses box-shadow and transform for smooth focus feedback.
+            </p>
+            <div class="test-grid">
+                <div class="search-container">
+                    <input type="text" class="search-input" placeholder="Search...">
+                    <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <circle cx="11" cy="11" r="8"/>
+                        <path d="m21 21-4.35-4.35"/>
+                    </svg>
+                </div>
+                <input type="text" class="fir-search-input" placeholder="FIR Search...">
+                <select class="fir-filter-select">
+                    <option>All Status</option>
+                    <option>Pending</option>
+                    <option>Investigating</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Test Section 4: Loading Animations -->
+        <div class="test-section">
+            <h2 class="test-title">4. Loading Animations</h2>
+            <p class="test-description">
+                Spinners use CSS transforms with will-change: transform for optimal performance.
+            </p>
+            <div class="test-grid">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <div class="spinner"></div>
+                    <span style="color: white;">Standard Spinner</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <div class="loading-spinner"></div>
+                    <span style="color: white;">Loading Spinner</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Test Section 5: Toast -->
+        <div class="test-section">
+            <h2 class="test-title">5. Toast Animations</h2>
+            <p class="test-description">
+                Click to trigger toast notifications with optimized slide-in animations.
+            </p>
+            <button class="generate-btn" onclick="showTestToast('success')">Show Success Toast</button>
+            <button class="generate-btn" onclick="showTestToast('error')" style="margin-left: 1rem;">Show Error Toast</button>
+        </div>
+        
+        <!-- Test Section 6: Drag & Drop -->
+        <div class="test-section">
+            <h2 class="test-title">6. Drag & Drop Animations</h2>
+            <p class="test-description">
+                Drag a file over the zone to test pulse and glow effects.
+            </p>
+            <div class="file-upload-item drop-zone" style="width: 100%; justify-content: center;">
+                <svg class="file-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                <span>Drag file here or click to upload</span>
+                <span class="drop-hint">Supports: JPG, PNG, PDF, WAV, MP3</span>
+            </div>
+        </div>
+        
+        <!-- Performance Tips -->
+        <div class="test-section">
+            <h2 class="test-title">Performance Tips</h2>
+            <div style="color: rgba(200, 200, 200, 1); line-height: 1.8;">
+                <p><strong style="color: #22c55e;">✅ DO:</strong></p>
+                <ul style="margin-left: 1.5rem; margin-bottom: 1rem;">
+                    <li>Use transform and opacity for animations</li>
+                    <li>Apply will-change to animated elements</li>
+                    <li>Specify exact transition properties</li>
+                    <li>Keep animations under 0.6s</li>
+                    <li>Test with Chrome DevTools Performance tab</li>
+                </ul>
+                
+                <p><strong style="color: #ef4444;">❌ DON'T:</strong></p>
+                <ul style="margin-left: 1.5rem;">
+                    <li>Animate width, height, top, left, right, bottom</li>
+                    <li>Use "transition: all"</li>
+                    <li>Overuse will-change</li>
+                    <li>Create animations longer than 1s</li>
+                    <li>Ignore prefers-reduced-motion</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+    
+    <script>
+        // FPS Counter
+        let lastTime = performance.now();
+        let frames = 0;
+        let fps = 60;
+        
+        function updateFPS() {
+            const now = performance.now();
+            frames++;
+            
+            if (now >= lastTime + 1000) {
+                fps = Math.round((frames * 1000) / (now - lastTime));
+                document.getElementById('fps-value').textContent = fps;
+                
+                // Color code FPS
+                const fpsElement = document.getElementById('fps-value');
+                if (fps >= 55) {
+                    fpsElement.style.color = '#22c55e'; // Green
+                } else if (fps >= 30) {
+                    fpsElement.style.color = '#f59e0b'; // Yellow
+                } else {
+                    fpsElement.style.color = '#ef4444'; // Red
+                }
+                
+                frames = 0;
+                lastTime = now;
+            }
+            
+            requestAnimationFrame(updateFPS);
+        }
+        
+        updateFPS();
+        
+        // Reduced Motion Toggle
+        const reducedMotionToggle = document.getElementById('reduced-motion-toggle');
+        let reducedMotionEnabled = false;
+        
+        reducedMotionToggle.addEventListener('click', () => {
+            reducedMotionEnabled = !reducedMotionEnabled;
+            
+            if (reducedMotionEnabled) {
+                document.body.style.setProperty('--animation-speed', '0.01');
+                document.body.classList.add('reduced-motion');
+                reducedMotionToggle.textContent = 'ON';
+                reducedMotionToggle.classList.add('active');
+                
+                // Add reduced motion styles
+                const style = document.createElement('style');
+                style.id = 'reduced-motion-style';
+                style.textContent = `
+                    @media (prefers-reduced-motion: reduce) {
+                        *, *::before, *::after {
+                            animation-duration: 0.01ms !important;
+                            animation-iteration-count: 1 !important;
+                            transition-duration: 0.01ms !important;
+                        }
+                    }
+                `;
+                document.head.appendChild(style);
+            } else {
+                document.body.style.removeProperty('--animation-speed');
+                document.body.classList.remove('reduced-motion');
+                reducedMotionToggle.textContent = 'OFF';
+                reducedMotionToggle.classList.remove('active');
+                
+                // Remove reduced motion styles
+                const style = document.getElementById('reduced-motion-style');
+                if (style) style.remove();
+            }
+        });
+        
+        // Toast Test
+        let toastId = 0;
+        
+        function showTestToast(type) {
+            const container = document.getElementById('toast-container');
+            const id = `toast-${toastId++}`;
+            
+            const icons = {
+                success: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>',
+                error: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
+            };
+            
+            const messages = {
+                success: 'Animation test successful! Check FPS counter.',
+                error: 'Animation test error! Check FPS counter.'
+            };
+            
+            const toast = document.createElement('div');
+            toast.id = id;
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `
+                <div class="toast-icon">${icons[type]}</div>
+                <div class="toast-content">
+                    <div class="toast-message">${messages[type]}</div>
+                </div>
+                <svg class="toast-close" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" onclick="hideTestToast('${id}')">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            `;
+            
+            container.appendChild(toast);
+            
+            // Trigger animation
+            setTimeout(() => toast.classList.add('toast-show'), 10);
+            
+            // Auto hide after 3 seconds
+            setTimeout(() => hideTestToast(id), 3000);
+        }
+        
+        function hideTestToast(id) {
+            const toast = document.getElementById(id);
+            if (toast) {
+                toast.classList.remove('toast-show');
+                toast.classList.add('toast-hide');
+                setTimeout(() => toast.remove(), 300);
+            }
+        }
+        
+        // Drag & Drop Test
+        const dropZone = document.querySelector('.drop-zone');
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('drag-over');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            showTestToast('success');
+        });
+        
+        // Log performance info
+        console.log('Animation Performance Test');
+        console.log('=========================');
+        console.log('Optimizations:');
+        console.log('✅ CSS transforms (GPU-accelerated)');
+        console.log('✅ will-change hints');
+        console.log('✅ Specific transition properties');
+        console.log('✅ prefers-reduced-motion support');
+        console.log('');
+        console.log('Target: 60 FPS');
+        console.log('Monitor FPS counter in top-right corner');
+    </script>
+</body>
+</html>

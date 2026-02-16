@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Print Functionality Test - AFIRGen</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/print.css" media="print">
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff;
+      padding: 2rem;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .test-section {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .test-section h2 {
+      margin-bottom: 1rem;
+    }
+
+    .print-preview {
+      background: #fff;
+      color: #000;
+      padding: 2rem;
+      border-radius: 8px;
+      margin: 1rem 0;
+    }
+
+    .controls {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-top: 1.5rem;
+    }
+
+    button {
+      padding: 0.75rem 1.5rem;
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 0.875rem;
+      transition: all 0.2s ease;
+    }
+
+    button:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .test-result {
+      margin-top: 1rem;
+      padding: 1rem;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .test-result.pass {
+      border-left: 4px solid #10b981;
+    }
+
+    .test-result.fail {
+      border-left: 4px solid #ef4444;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Print Functionality Test</h1>
+
+    <!-- Test Section 1: Basic Print -->
+    <div class="test-section">
+      <h2>Test 1: Basic Print Functionality</h2>
+      <p>This test verifies that the print dialog opens correctly.</p>
+      
+      <div class="print-preview">
+        <h3>Sample FIR Document</h3>
+        <p><strong>FIR Number:</strong> FIR/2024/001</p>
+        <p><strong>Date:</strong> January 15, 2024</p>
+        <p><strong>Complainant:</strong> John Doe</p>
+        <p><strong>Incident:</strong> Sample incident description for testing print functionality.</p>
+        <p><strong>Location:</strong> Test Location, City</p>
+        <p><strong>Status:</strong> Pending Investigation</p>
+      </div>
+
+      <div class="controls">
+        <button onclick="testBasicPrint()">Test Basic Print</button>
+      </div>
+      <div class="test-result" id="result-basic-print"></div>
+    </div>
+
+    <!-- Test Section 2: Print Styles -->
+    <div class="test-section">
+      <h2>Test 2: Print Styles Application</h2>
+      <p>This test verifies that print styles are correctly applied.</p>
+      
+      <div class="controls">
+        <button onclick="testPrintStyles()">Check Print Styles</button>
+      </div>
+      <div class="test-result" id="result-print-styles"></div>
+    </div>
+
+    <!-- Test Section 3: Element Hiding -->
+    <div class="test-section">
+      <h2>Test 3: Non-Printable Elements</h2>
+      <p>This test verifies that non-printable elements are hidden during print.</p>
+      
+      <div class="print-preview">
+        <p>This should be printed</p>
+        <div data-no-print style="background: #f00; padding: 1rem;">
+          This should NOT be printed (marked with data-no-print)
+        </div>
+        <p>This should also be printed</p>
+      </div>
+
+      <div class="controls">
+        <button onclick="testElementHiding()">Test Element Hiding</button>
+      </div>
+      <div class="test-result" id="result-element-hiding"></div>
+    </div>
+
+    <!-- Test Section 4: Print Header/Footer -->
+    <div class="test-section">
+      <h2>Test 4: Print Header and Footer</h2>
+      <p>This test verifies that print header and footer are added correctly.</p>
+      
+      <div class="controls">
+        <button onclick="testHeaderFooter()">Test Header/Footer</button>
+      </div>
+      <div class="test-result" id="result-header-footer"></div>
+    </div>
+
+    <!-- Test Section 5: Print Modal Content -->
+    <div class="test-section">
+      <h2>Test 5: Print Modal Content</h2>
+      <p>This test verifies printing of modal content.</p>
+      
+      <div id="success-content" class="print-preview">
+        <div class="fir-content-header">
+          <div class="fir-source-info">
+            <strong>Source:</strong> Test Document
+          </div>
+        </div>
+        <div class="fir-content-display">
+          <pre class="fir-content-text">FIR Number: FIR/2024/001
+Date: January 15, 2024
+Complainant: John Doe
+Incident: Sample incident for testing
+Location: Test Location
+Status: Pending</pre>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button onclick="testModalPrint()">Test Modal Print</button>
+      </div>
+      <div class="test-result" id="result-modal-print"></div>
+    </div>
+
+    <!-- Test Section 6: Cross-Browser Compatibility -->
+    <div class="test-section">
+      <h2>Test 6: Cross-Browser Compatibility</h2>
+      <p>This test checks browser compatibility for print functionality.</p>
+      
+      <div class="controls">
+        <button onclick="testBrowserCompat()">Test Browser Compatibility</button>
+      </div>
+      <div class="test-result" id="result-browser-compat"></div>
+    </div>
+
+    <!-- Run All Tests -->
+    <div class="test-section">
+      <h2>Run All Tests</h2>
+      <div class="controls">
+        <button onclick="runAllTests()">Run All Tests</button>
+        <button onclick="window.print()">Open Print Dialog</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/print-handler.js"></script>
+  <script>
+    let testResults = {
+      passed: 0,
+      failed: 0,
+      total: 0
+    };
+
+    function updateResult(elementId, passed, message) {
+      const element = document.getElementById(elementId);
+      element.className = `test-result ${passed ? 'pass' : 'fail'}`;
+      element.innerHTML = `
+        <strong>${passed ? '✓ PASS' : '✗ FAIL'}:</strong> ${message}
+      `;
+      
+      testResults.total++;
+      if (passed) {
+        testResults.passed++;
+      } else {
+        testResults.failed++;
+      }
+    }
+
+    function testBasicPrint() {
+      try {
+        const hasPrintHandler = typeof window.printHandler !== 'undefined';
+        const hasWindowPrint = typeof window.print === 'function';
+        
+        if (hasPrintHandler && hasWindowPrint) {
+          updateResult('result-basic-print', true, 'Print handler initialized and window.print() available');
+        } else {
+          updateResult('result-basic-print', false, 'Print functionality not available');
+        }
+      } catch (error) {
+        updateResult('result-basic-print', false, `Error: ${error.message}`);
+      }
+    }
+
+    function testPrintStyles() {
+      try {
+        const printStylesheet = document.querySelector('link[href*="print.css"]');
+        
+        if (printStylesheet) {
+          updateResult('result-print-styles', true, 'Print stylesheet loaded correctly');
+        } else {
+          updateResult('result-print-styles', false, 'Print stylesheet not found');
+        }
+      } catch (error) {
+        updateResult('result-print-styles', false, `Error: ${error.message}`);
+      }
+    }
+
+    function testElementHiding() {
+      try {
+        const noPrintElements = document.querySelectorAll('[data-no-print]');
+        
+        if (noPrintElements.length > 0) {
+          updateResult('result-element-hiding', true, `Found ${noPrintElements.length} elements marked as non-printable`);
+        } else {
+          updateResult('result-element-hiding', false, 'No non-printable elements found');
+        }
+      } catch (error) {
+        updateResult('result-element-hiding', false, `Error: ${error.message}`);
+      }
+    }
+
+    function testHeaderFooter() {
+      try {
+        // Trigger print preparation
+        window.printHandler.preparePrintDocument();
+        
+        const header = document.querySelector('.print-header');
+        const footer = document.querySelector('.print-footer');
+        
+        if (header && footer) {
+          updateResult('result-header-footer', true, 'Print header and footer added successfully');
+        } else {
+          updateResult('result-header-footer', false, 'Print header or footer missing');
+        }
+        
+        // Cleanup
+        window.printHandler.performCleanup();
+      } catch (error) {
+        updateResult('result-header-footer', false, `Error: ${error.message}`);
+      }
+    }
+
+    function testModalPrint() {
+      try {
+        const modalContent = document.querySelector('#success-content');
+        
+        if (modalContent) {
+          updateResult('result-modal-print', true, 'Modal content found and ready for printing');
+        } else {
+          updateResult('result-modal-print', false, 'Modal content not found');
+        }
+      } catch (error) {
+        updateResult('result-modal-print', false, `Error: ${error.message}`);
+      }
+    }
+
+    function testBrowserCompat() {
+      try {
+        const browser = {
+          isChrome: /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor),
+          isFirefox: /Firefox/.test(navigator.userAgent),
+          isSafari: /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent),
+          isEdge: /Edg/.test(navigator.userAgent)
+        };
+
+        const supportsPrint = 'print' in window;
+        const supportsAfterPrint = 'onafterprint' in window;
+        
+        const browserName = Object.keys(browser).find(key => browser[key]) || 'Unknown';
+        
+        if (supportsPrint) {
+          updateResult('result-browser-compat', true, 
+            `Browser: ${browserName}, Print support: Yes, AfterPrint event: ${supportsAfterPrint ? 'Yes' : 'No'}`);
+        } else {
+          updateResult('result-browser-compat', false, 'Print not supported in this browser');
+        }
+      } catch (error) {
+        updateResult('result-browser-compat', false, `Error: ${error.message}`);
+      }
+    }
+
+    function runAllTests() {
+      testResults = { passed: 0, failed: 0, total: 0 };
+      
+      testBasicPrint();
+      testPrintStyles();
+      testElementHiding();
+      testHeaderFooter();
+      testModalPrint();
+      testBrowserCompat();
+      
+      setTimeout(() => {
+        alert(`Test Results:\nPassed: ${testResults.passed}\nFailed: ${testResults.failed}\nTotal: ${testResults.total}`);
+      }, 500);
+    }
+
+    // Auto-run tests on load
+    window.addEventListener('load', () => {
+      setTimeout(runAllTests, 1000);
+    });
+  </script>
+</body>
+</html>
