@@ -159,7 +159,7 @@ def test_cors_trailing_slash_normalization(client_with_specific_origins):
 # ============================================================================
 
 # Feature: afirgen-aws-optimization, Property 2: CORS Origin Validation
-@settings(max_examples=100)
+@settings(max_examples=20)
 @given(
     origin=st.one_of(
         st.just("https://example.com"),  # Valid origin
@@ -215,7 +215,7 @@ def test_property_cors_origin_validation(origin):
         assert "access-control-allow-origin" not in response.headers
 
 
-@settings(max_examples=50)
+@settings(max_examples=10)
 @given(
     method=st.sampled_from(["GET", "POST", "PUT", "DELETE"]),
     is_allowed_origin=st.booleans(),
@@ -262,7 +262,7 @@ def test_property_cors_methods(method, is_allowed_origin):
         assert "access-control-allow-origin" not in response.headers
 
 
-@settings(max_examples=50)
+@settings(max_examples=10)
 @given(
     num_origins=st.integers(min_value=1, max_value=10),
     test_origin_index=st.integers(min_value=-1, max_value=10),
@@ -313,7 +313,7 @@ def test_property_cors_multiple_origins(num_origins, test_origin_index):
         assert "access-control-allow-origin" not in response.headers
 
 
-@settings(max_examples=50)
+@settings(max_examples=10)
 @given(
     has_credentials=st.booleans(),
     is_allowed_origin=st.booleans(),

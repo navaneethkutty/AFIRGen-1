@@ -1,0 +1,4 @@
+# file: C:\Users\knith\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\langsmith\_internal\_background_thread.py
+# hypothesis_version: 6.151.9
+
+[0.05, 0.25, 0.5, 100, 20971520, '_manual_cleanup', 'getrefcount', 'item', 'langsmith.client', 'otel_context', 'priority', 'size_limit', 'size_limit_bytes']

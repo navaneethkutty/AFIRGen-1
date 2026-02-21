@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\utils\common.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1.0, '%Y%m%d%H%M%S', '%Y-%m-%d %H:%M:%S', '(?<!^)(?=[A-Z])', '*', '+00:00', '-', '.', '...', '1', 'T', 'Z', '\\s+', '_', 'on', 'sha256', 'true', 'utf-8', 'yes', '{}']

@@ -1,0 +1,4 @@
+# file: C:\Users\knith\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\opentelemetry\semconv\attributes\network_attributes.py
+# hypothesis_version: 6.151.9
+
+['ipv4', 'ipv6', 'network.local.port', 'network.peer.address', 'network.peer.port', 'network.transport', 'network.type', 'pipe', 'quic', 'tcp', 'udp', 'unix']

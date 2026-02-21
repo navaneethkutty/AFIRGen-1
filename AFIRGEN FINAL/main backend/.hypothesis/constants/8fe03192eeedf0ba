@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\infrastructure\error_classification.py
+# hypothesis_version: 6.151.9
+
+[400, 408, 429, 500, 502, 503, 504, 600, 'critical', 'non_retryable', 'retryable']

@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\repositories\base_repository.py
+# hypothesis_version: 6.151.9
+
+[0.0, ' AND ', ' GROUP BY ', ' WHERE ', '*', ', ', 'AVG', 'COUNT', 'Cache invalidated', 'CursorInfo', 'Delete failed', 'INNER JOIN', 'LEFT JOIN', 'MAX', 'MIN', 'RIGHT JOIN', 'SELECT', 'SUM', 'T', 'Update failed', 'aggregate_value', 'has_more', 'id', 'items', 'list:*', 'next_cursor', 'page_size', 'query:*', 'sort', 'stats:*', 'total_count']

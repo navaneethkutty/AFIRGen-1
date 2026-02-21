@@ -19,6 +19,15 @@ services:
         - ENFORCE_HTTPS=${ENFORCE_HTTPS:-false}
         - MAX_CONCURRENT_REQUESTS=${MAX_CONCURRENT_REQUESTS:-15}
         - MAX_CONCURRENT_MODEL_CALLS=${MAX_CONCURRENT_MODEL_CALLS:-10}
+        - REDIS_HOST=redis
+        - REDIS_PORT=6379
+        - REDIS_DB=0
+        - CELERY_BROKER_URL=redis://redis:6379/1
+        - CELERY_RESULT_BACKEND=redis://redis:6379/2
+        - PROMETHEUS_ENABLED=true
+        - LOG_LEVEL=${LOG_LEVEL:-INFO}
+        - LOG_FORMAT=json
+        - SERVICE_NAME=afirgen-backend
     volumes:
       - ./general retrieval db:/app/kb:ro  # Knowledge base files (read-only)
       - chroma_data:/app/chroma_kb  # ChromaDB persistence
@@ -26,6 +35,8 @@ services:
       - temp_files:/app/temp_files  # Temporary files
     depends_on:
       mysql:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       gguf_model_server:
         condition: service_healthy
@@ -143,6 +154,70 @@ services:
     networks:
       - afirgen_network
 
+  # Redis for caching and Celery message broker
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    stop_grace_period: 10s
+    networks:
+      - afirgen_network
+
+  # Celery worker for background tasks
+  celery_worker:
+    build:
+      context: "./main backend"
+      dockerfile: Dockerfile
+    command: celery -A infrastructure.celery_app worker --loglevel=info --queues=email,reports,analytics,cleanup
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=${MYSQL_USER:-root}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-password}
+      - MYSQL_DB=${MYSQL_DB:-fir_db}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=json
+      - SERVICE_NAME=afirgen-celery-worker
+    depends_on:
+      redis:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    stop_grace_period: 30s
+    networks:
+      - afirgen_network
+
   frontend:
     build:
       context: ./frontend
@@ -244,6 +319,7 @@ services:
 
 volumes:
   mysql_data:
+  redis_data:  # Redis data persistence
   chroma_data:  # ChromaDB vector database persistence
   sessions_data:  # Session database (sessions.db) persistence
   temp_files:  # Temporary files for main backend

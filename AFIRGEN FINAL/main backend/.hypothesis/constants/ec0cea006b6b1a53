@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\infrastructure\circuit_breaker.py
+# hypothesis_version: 6.151.9
+
+['T', 'closed', 'failure_count', 'half_open', 'last_failure_time', 'last_state_change', 'open', 'state', 'success_count', 'total_calls', 'total_failures', 'total_successes']

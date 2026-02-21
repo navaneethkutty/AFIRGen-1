@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\infrastructure\redis_client.py
+# hypothesis_version: 6.151.9
+
+[0.5, 10.0, 'create Redis client', 'ping Redis']

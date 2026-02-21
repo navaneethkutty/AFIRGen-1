@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\infrastructure\tasks\report_tasks.py
+# hypothesis_version: 6.151.9
+
+['file_path', 'fir_count', 'fir_id', 'fir_report', 'message', 'report_name', 'report_type', 'standard', 'status', 'success']

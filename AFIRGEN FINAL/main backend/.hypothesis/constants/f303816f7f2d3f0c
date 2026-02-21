@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\utils\pagination.py
+# hypothesis_version: 6.151.9
+
+['Decoded cursor', 'Encoded cursor', 'T', '__dataclass_fields__', '__dict__', 'has_more', 'id', 'items', 'last_id', 'last_value', 'next_cursor', 'page_size', 'total_count', 'utf-8']

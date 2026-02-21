@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\infrastructure\alerting.py
+# hypothesis_version: 6.151.9
+
+[1e-09, 2.0, 5.0, 10.0, 30.0, 50.0, 70.0, 75.0, 80.0, 90.0, 95.0, 300, 'Alert deduplicated', 'Alert triggered', 'Failed to log alert', 'cache_hit_rate', 'cpu_percent', 'critical', 'current_value', 'db_pool_utilization', 'disk_io', 'equals', 'error_rate', 'exceeded', 'fell below', 'greater_than', 'less_than', 'memory_percent', 'message', 'metadata', 'metric_type', 'model_server_latency', 'network_io', 'response_time', 'severity', 'threshold_value', 'timestamp', 'violated', 'warning']

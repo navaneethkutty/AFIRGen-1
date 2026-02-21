@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\infrastructure\cache_manager.py
+# hypothesis_version: 6.151.9
+
+['*', 'default', 'delete', 'get', 'invalidate_pattern', 'memory', 'set', 'used_memory']

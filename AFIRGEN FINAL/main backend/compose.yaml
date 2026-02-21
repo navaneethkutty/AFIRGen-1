@@ -1,49 +1,247 @@
-# Comments are provided throughout this file to help you get started.
-# If you need more help, visit the Docker Compose reference guide at
-# https://docs.docker.com/go/compose-spec-reference/
+# AFIRGen Backend - Docker Compose Configuration
+# This configuration sets up the complete AFIRGen backend stack including:
+# - FastAPI application
+# - MySQL database
+# - Redis cache
+# - Celery workers
+# - Prometheus monitoring (optional)
 
-# Here the instructions define your application as a service called "server".
-# This service is built from the Dockerfile in the current directory.
-# You can add other services your application may depend on here, such as a
-# database or a cache. For examples, see the Awesome Compose repository:
-# https://github.com/docker/awesome-compose
+version: '3.8'
+
 services:
-  server:
+  # FastAPI Application
+  app:
     build:
       context: .
+      dockerfile: Dockerfile
+    container_name: afirgen-backend
     ports:
-      - 8000:8000
+      - "8000:8000"
+    environment:
+      # Database Configuration
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_USER=afirgen_user
+      - DB_PASSWORD=afirgen_password
+      - DB_NAME=afirgen
+      - DB_POOL_SIZE=20
+      - DB_MAX_OVERFLOW=10
+      
+      # Redis Configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - REDIS_MAX_CONNECTIONS=50
+      
+      # Celery Configuration
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      
+      # Model Servers (adjust to your setup)
+      - MODEL_SERVER_URL=http://host.docker.internal:8001
+      - ASR_OCR_SERVER_URL=http://host.docker.internal:8002
+      
+      # Application Configuration
+      - SERVICE_NAME=afirgen-backend
+      - LOG_LEVEL=INFO
+      - LOG_FORMAT=json
+      - API_WORKERS=4
+      
+      # Monitoring
+      - PROMETHEUS_ENABLED=true
+      - OTEL_ENABLED=false
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - afirgen-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
-# The commented out section below is an example of how to define a PostgreSQL
-# database that your application can use. `depends_on` tells Docker Compose to
-# start the database before your application. The `db-data` volume persists the
-# database data between container restarts. The `db-password` secret is used
-# to set the database password. You must create `db/password.txt` and add
-# a password of your choosing to it before running `docker compose up`.
-#     depends_on:
-#       db:
-#         condition: service_healthy
-#   db:
-#     image: postgres
-#     restart: always
-#     user: postgres
-#     secrets:
-#       - db-password
-#     volumes:
-#       - db-data:/var/lib/postgresql/data
-#     environment:
-#       - POSTGRES_DB=example
-#       - POSTGRES_PASSWORD_FILE=/run/secrets/db-password
-#     expose:
-#       - 5432
-#     healthcheck:
-#       test: [ "CMD", "pg_isready" ]
-#       interval: 10s
-#       timeout: 5s
-#       retries: 5
-# volumes:
-#   db-data:
-# secrets:
-#   db-password:
-#     file: db/password.txt
+  # MySQL Database
+  db:
+    image: mysql:8.0
+    container_name: afirgen-db
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=afirgen
+      - MYSQL_USER=afirgen_user
+      - MYSQL_PASSWORD=afirgen_password
+      - MYSQL_CHARACTER_SET_SERVER=utf8mb4
+      - MYSQL_COLLATION_SERVER=utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    networks:
+      - afirgen-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --max_connections=200
+      --innodb_buffer_pool_size=1G
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: afirgen-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - afirgen-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: >
+      redis-server
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+      --save 60 1000
+      --appendonly yes
+
+  # Celery Worker
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: afirgen-celery
+    command: celery -A infrastructure.celery_app worker --loglevel=info --concurrency=4 --max-tasks-per-child=1000
+    environment:
+      # Database Configuration
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_USER=afirgen_user
+      - DB_PASSWORD=afirgen_password
+      - DB_NAME=afirgen
+      
+      # Redis Configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      
+      # Celery Configuration
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - CELERY_WORKER_CONCURRENCY=4
+      
+      # Model Servers
+      - MODEL_SERVER_URL=http://host.docker.internal:8001
+      - ASR_OCR_SERVER_URL=http://host.docker.internal:8002
+      
+      # Application Configuration
+      - SERVICE_NAME=afirgen-celery
+      - LOG_LEVEL=INFO
+      - LOG_FORMAT=json
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - afirgen-network
+    restart: unless-stopped
+
+  # Celery Beat (Scheduled Tasks) - Optional
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: afirgen-celery-beat
+    command: celery -A infrastructure.celery_app beat --loglevel=info
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - SERVICE_NAME=afirgen-celery-beat
+      - LOG_LEVEL=INFO
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - afirgen-network
+    restart: unless-stopped
+    profiles:
+      - full  # Only start with --profile full
+
+  # Prometheus (Monitoring) - Optional
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: afirgen-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - afirgen-network
+    restart: unless-stopped
+    profiles:
+      - monitoring  # Only start with --profile monitoring
+
+  # Grafana (Visualization) - Optional
+  grafana:
+    image: grafana/grafana:latest
+    container_name: afirgen-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - afirgen-network
+    restart: unless-stopped
+    profiles:
+      - monitoring  # Only start with --profile monitoring
+
+networks:
+  afirgen-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
 

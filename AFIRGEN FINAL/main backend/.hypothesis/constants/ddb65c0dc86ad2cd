@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\services\gguf_model_server.py
+# hypothesis_version: 6.151.9
+
+[0.7, 1.0, 2.0, 10.0, 200, 512, '/', 'Circuit breaker open', 'Health check failed', 'circuit_breaker', 'failure_count', 'gguf_llm_server', 'gguf_model_server', 'half_open', 'last_failure_time', 'last_success_time', 'max_tokens', 'open', 'prompt', 'service_name', 'state', 'status', 'stop', 'success_count', 'temperature']

@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\infrastructure\logging.py
+# hypothesis_version: 6.151.9
+
+['%(message)s', '***REDACTED***', '.log', '/', 'StructuredLogger', '\\', 'critical', 'debug', 'error', 'event', 'info', 'iso', 'json', 'message', 'service', 'stderr', 'stdout', 'warning']

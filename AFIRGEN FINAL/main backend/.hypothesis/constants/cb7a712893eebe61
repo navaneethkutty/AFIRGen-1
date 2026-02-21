@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\infrastructure\background_task_manager.py
+# hypothesis_version: 6.151.9
+
+[100, 'Rollback failed', 'Task cancelled', 'Task enqueued', 'Task status updated', 'analytics', 'cancelled', 'cleanup', 'completed', 'completed_at', 'completed_at = NOW()', 'count', 'created_at', 'email', 'error_message = %s', 'failed', 'params', 'pending', 'report', 'result', 'result = %s', 'retry_count = %s', 'running', 'started_at', 'started_at = NOW()', 'status = %s', 'task_type = %s']

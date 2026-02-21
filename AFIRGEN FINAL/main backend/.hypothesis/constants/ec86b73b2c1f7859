@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\middleware\cache_header_middleware.py
+# hypothesis_version: 6.151.9
+
+[200, 304, 1800, 3600, 7200, '*', ',', ', ', '/api/v1/fir/*', '/api/v1/fir/{fir_id}', '/api/v1/kb/*', '/api/v1/process', '/api/v1/static/*', '/api/v1/violations', '/health', '/metrics', 'Cache-Control', 'ETag', 'GET', '__main__', 'cache-control', 'completed', 'id', 'if-none-match', 'immutable', 'public', 'speeding', 'status', 'type', 'v1']

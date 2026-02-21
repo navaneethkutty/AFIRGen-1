@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\infrastructure\connection_retry.py
+# hypothesis_version: 6.151.9
+
+[0.5, 1.0, 2.0, 10.0, 30.0, 'database', 'database operation', 'redis', 'redis operation']

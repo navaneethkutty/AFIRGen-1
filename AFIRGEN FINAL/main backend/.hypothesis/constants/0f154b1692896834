@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\infrastructure\celery_app.py
+# hypothesis_version: 6.151.9
+
+[3600, 'afirgen_tasks', 'analytics', 'cleanup', 'default', 'email', 'infrastructure.tasks', 'master_name', 'mymaster', 'priority', 'queue', 'reports', 'routing_key', 'visibility_timeout', 'x-max-priority']

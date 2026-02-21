@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\infrastructure\error_response.py
+# hypothesis_version: 6.151.9
+
+['+00:00', 'AUTHORIZATION_FAILED', 'CACHE_ERROR', 'CIRCUIT_BREAKER_OPEN', 'DATABASE_ERROR', 'FIR', 'INVALID_REQUEST', 'ISO 8601 timestamp', 'RATE_LIMIT_EXCEEDED', 'RESOURCE_CONFLICT', 'RESOURCE_NOT_FOUND', 'RETRY_EXHAUSTED', 'Rate limit exceeded', 'Resource not found', 'SERVICE_UNAVAILABLE', 'TIMEOUT_ERROR', 'VALIDATION_ERROR', 'Z', 'abc-123-def-456', 'conflicting_resource', 'correlation_id', 'details', 'error', 'error_code', 'example', 'exception_message', 'exception_type', 'external_service', 'field_errors', 'fir_12345', 'last_error', 'operation', 'request', 'required_permission', 'resource_id', 'resource_type', 'retry_count', 'service_name', 'status_code', 'timeout_seconds', 'timestamp', 'traceback']

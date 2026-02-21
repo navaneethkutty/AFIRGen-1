@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\middleware\compression_middleware.py
+# hypothesis_version: 6.151.9
+
+[100, 1024, '/docs', '/health', '/metrics', '/openapi.json', '/redoc', ';', 'Compressed response', 'Compression failed', 'accept-encoding', 'application/gzip', 'application/x-gzip', 'application/zip', 'audio/mp3', 'audio/mpeg', 'content-encoding', 'content-length', 'content-type', 'gzip', 'image/gif', 'image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/mpeg']

@@ -1,0 +1,4 @@
+# file: C:\Users\knith\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\opentelemetry\instrumentation\asgi\__init__.py
+# hypothesis_version: 6.151.9
+
+[200, 1000, ',', '0.0.0.0', '80', ':', '://', '?', 'By', 'HTTP', '_OTHER', 'asgi.event.type', 'client', 'content-length', 'headers', 'host', 'http', 'http.response.body', 'http.response.start', 'http_version', 'method', 'more_body', 'more_trailers', 'ms', 'path', 'path_format', 'query_string', 'receive', 'root_path', 'route', 's', 'scheme', 'send', 'server', 'status', 'trailers', 'type', 'unicode_escape', 'user-agent', 'utf-8', 'utf8', 'websocket', 'websocket.receive', 'websocket.send']

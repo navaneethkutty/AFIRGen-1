@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\infrastructure\query_optimizer.py
+# hypothesis_version: 6.151.9
+
+[0.0, 100, 1000, ', ', 'ALL', 'ASC', 'BTREE', 'BY', 'DELETE', 'DESC', 'INSERT', 'NULL', 'ORDER', 'SELECT', 'UNKNOWN', 'UPDATE', 'index', 'key', 'rows', 'table', 'type', 'unknown']

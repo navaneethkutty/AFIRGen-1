@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\api\task_endpoints.py
+# hypothesis_version: 6.151.9
+
+[100, 201, 400, 404, 500, 1000, '/', '/api/tasks', '/count/all', '/enqueue', '/{task_id}', '/{task_id}/cancel', 'Background Tasks', 'Celery task name', 'Filter by task type', 'Task parameters', 'Task priority (1-10)']

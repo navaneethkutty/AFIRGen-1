@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\infrastructure\tasks\analytics_tasks.py
+# hypothesis_version: 6.151.9
+
+['completed_firs', 'data_type', 'date_range', 'message', 'metrics_updated', 'pending_firs', 'records_processed', 'status', 'success', 'total_firs', 'violation_counts']

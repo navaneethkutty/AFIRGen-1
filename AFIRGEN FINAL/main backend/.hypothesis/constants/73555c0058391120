@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\infrastructure\config.py
+# hypothesis_version: 6.151.9
+
+[',', '/metrics', '0', '10.0', '1000', '2.0', '300', '3300', '3600', '4', '5', '5.0', '50', '6379', '70.0', '75.0', '90.0', '9090', '=', 'ALERTING_ENABLED', 'ALERT_CPU_CRITICAL', 'ALERT_CPU_WARNING', 'ALERT_MEMORY_WARNING', 'CELERY_BROKER_URL', 'CELERY_WORKER_POOL', 'INFO', 'LOG_FORMAT', 'LOG_LEVEL', 'LOG_MODULE_LEVELS', 'LOG_OUTPUT', 'PROMETHEUS_ENABLED', 'PROMETHEUS_PORT', 'REDIS_DB', 'REDIS_HOST', 'REDIS_PASSWORD', 'REDIS_PORT', 'REDIS_SOCKET_TIMEOUT', 'SERVICE_NAME', 'UTC', 'afirgen-backend', 'api_key', 'authorization', 'credit_card', 'email', 'json', 'localhost', 'password', 'phone', 'prefork', 'secret', 'ssn', 'stdout', 'token', 'true']

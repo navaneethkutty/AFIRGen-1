@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\infrastructure\performance_testing.py
+# hypothesis_version: 6.151.9
+
+[0.1, 100, 1000, 1024, '-', '=', 'Baseline Comparison:', 'DETAILED RESULTS', 'SUMMARY', 'System Metrics:', 'Violations:', 'api_endpoint', 'cache_operation', 'concurrency', 'concurrent_load', 'cpu_percent', 'database_query', 'disk_io_read_mb', 'disk_io_write_mb', 'failed', 'mean_change_pct', 'memory_percent', 'metrics', 'p95_change_pct', 'p99_change_pct', 'passed', 'r', 'results', 'status', 'system_metrics', 'test_type', 'threshold', 'timestamp', 'violations', 'w', 'warning']

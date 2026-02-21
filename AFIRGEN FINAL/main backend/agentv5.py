@@ -91,6 +91,14 @@ from xray_tracing import (
     get_trace_id
 )
 
+# Import background task management
+from infrastructure.background_task_manager import BackgroundTaskManager
+from infrastructure.tasks.base_task import DatabaseTask
+from services.fir_service import FIRService
+
+# Import metrics collection
+from infrastructure.metrics import MetricsCollector
+
 # Try to import python-magic, fallback to basic validation
 try:
     import magic
@@ -182,7 +190,7 @@ class DateTimeEncoder(json.JSONEncoder):
             return o.isoformat()
         return super().default(o)
 
-def sanitise(text: str) -> str:
+def sanitize(text: str) -> str:
     """Legacy sanitization function - use input_validation.sanitize_text instead"""
     return sanitize_text(text, allow_html=False)
 
@@ -681,6 +689,11 @@ class ModelPool:
                     subsegment.put_annotation("max_tokens", max_tokens)
                     subsegment.put_metadata("prompt_length", len(prompt))
                     
+                    # MONITORING: Track model server request latency
+                    import time
+                    start_time = time.time()
+                    success = False
+                    
                     payload = {
                         "model_name": model_name,
                         "prompt": prompt,
@@ -696,6 +709,7 @@ class ModelPool:
                         resp.raise_for_status()
                         result = resp.json()
                         
+                        success = True
                         subsegment.put_annotation("success", True)
                         subsegment.put_metadata("response_length", len(result["result"]))
                         
@@ -712,6 +726,10 @@ class ModelPool:
                         log.error(f"Model server returned error: {e.response.status_code}")
                         error_detail = e.response.text
                         raise RuntimeError(f"Model inference failed: {error_detail}")
+                    finally:
+                        # MONITORING: Record model server latency and availability
+                        duration = time.time() - start_time
+                        MetricsCollector.record_model_server_latency("gguf_model_server", duration, success)
         
         # Apply circuit breaker and retry policy with auto-recovery
         try:
@@ -753,6 +771,11 @@ class ModelPool:
         async def _do_asr():
             # CONCURRENCY: Use semaphore to limit concurrent ASR calls
             async with self._model_semaphore:
+                # MONITORING: Track ASR/OCR server request latency
+                import time
+                start_time = time.time()
+                success = False
+                
                 try:
                     with open(audio_path, 'rb') as audio_file:
                         files = {"audio": audio_file}
@@ -769,6 +792,7 @@ class ModelPool:
                         if not transcript:
                             raise RuntimeError("ASR returned empty transcript")
                         
+                        success = True
                         return transcript
                         
                 except httpx.RequestError as e:
@@ -777,6 +801,10 @@ class ModelPool:
                 except httpx.HTTPStatusError as e:
                     log.error(f"ASR server returned error: {e.response.status_code}")
                     raise RuntimeError(f"ASR processing failed: {e.response.text}")
+                finally:
+                    # MONITORING: Record ASR/OCR server latency and availability
+                    duration = time.time() - start_time
+                    MetricsCollector.record_model_server_latency("asr_ocr_server", duration, success)
         
         # Apply circuit breaker and retry policy with auto-recovery
         try:
@@ -802,6 +830,11 @@ class ModelPool:
         async def _do_ocr():
             # CONCURRENCY: Use semaphore to limit concurrent OCR calls
             async with self._model_semaphore:
+                # MONITORING: Track ASR/OCR server request latency
+                import time
+                start_time = time.time()
+                success = False
+                
                 try:
                     with open(image_path, 'rb') as image_file:
                         files = {"image": image_file}
@@ -818,6 +851,7 @@ class ModelPool:
                         if not extracted_text:
                             raise RuntimeError("OCR returned empty text")
                         
+                        success = True
                         return extracted_text
                         
                 except httpx.RequestError as e:
@@ -826,6 +860,10 @@ class ModelPool:
                 except httpx.HTTPStatusError as e:
                     log.error(f"OCR server returned error: {e.response.status_code}")
                     raise RuntimeError(f"OCR processing failed: {e.response.text}")
+                finally:
+                    # MONITORING: Record ASR/OCR server latency and availability
+                    duration = time.time() - start_time
+                    MetricsCollector.record_model_server_latency("asr_ocr_server", duration, success)
         
         # Apply circuit breaker and retry policy with auto-recovery
         try:
@@ -1038,6 +1076,7 @@ class DB:
                         id INT AUTO_INCREMENT PRIMARY KEY,
                         fir_number VARCHAR(100) UNIQUE NOT NULL,
                         session_id VARCHAR(100),
+                        user_id VARCHAR(100),
                         complaint_text TEXT,
                         fir_content TEXT,
                         violations_json LONGTEXT,
@@ -1047,11 +1086,12 @@ class DB:
                         INDEX idx_fir_number (fir_number),
                         INDEX idx_session_id (session_id),
                         INDEX idx_status (status),
-                        INDEX idx_created_at (created_at)
+                        INDEX idx_created_at (created_at),
+                        INDEX idx_user_id (user_id)
                     )
                     """
                 )
-                log.info("Database tables initialized with indexes")
+                log.info("Database tables initialized with basic indexes")
                 
         except Exception as e:
             log.error(f"Database initialization failed: {e}")
@@ -1152,6 +1192,15 @@ class DB:
             raise
 
 db = DB()
+
+# Initialize background task manager and FIR service
+task_manager = BackgroundTaskManager(db.pool)
+fir_service = FIRService(task_manager)
+
+# Set database pool for background tasks
+DatabaseTask.set_db_pool(db.pool)
+
+log.info("Background task manager and FIR service initialized")
 
 # ------------------------------------------------------------- INTERACTIVE STATE & WORKFLOW
 class InteractiveFIRState(BaseModel):
@@ -1469,6 +1518,12 @@ setup_cors_middleware(
     use_enhanced=True,  # Enable enhanced middleware with logging
 )
 
+# Setup metrics middleware to track all API requests
+from middleware.metrics_middleware import setup_metrics_middleware
+
+setup_metrics_middleware(app)
+log.info("✅ Metrics middleware enabled - tracking all API requests")
+
 # Rate limiting middleware
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -1630,67 +1685,6 @@ class RequestTrackingMiddleware(BaseHTTPMiddleware):
             raise
         finally:
             graceful_shutdown.request_completed()
-
-    # API Authentication middleware
-    class APIAuthMiddleware(BaseHTTPMiddleware):
-        """Middleware to enforce API key authentication on all endpoints except health check"""
-
-        # Public endpoints that don't require authentication
-        PUBLIC_ENDPOINTS = {"/health", "/docs", "/redoc", "/openapi.json"}
-
-        async def dispatch(self, request: Request, call_next):
-            # Skip authentication for public endpoints
-            if request.url.path in self.PUBLIC_ENDPOINTS:
-                return await call_next(request)
-
-            # Get API key from header
-            api_key = request.headers.get("X-API-Key") or request.headers.get("Authorization")
-
-            # Handle Authorization header with Bearer scheme
-            if api_key and api_key.startswith("Bearer "):
-                api_key = api_key[7:]  # Remove "Bearer " prefix
-
-            # Validate API key exists in config
-            if not CFG.get("api_key"):
-                log.error("API authentication attempted but API_KEY not configured")
-                raise HTTPException(
-                    status_code=500,
-                    detail="API authentication not properly configured"
-                )
-
-            # Validate API key
-            if not api_key:
-                log.warning(f"Missing API key for {request.url.path} from {request.client.host if request.client else 'unknown'}")
-                
-                # Record auth failure
-                record_auth_event(success=False, reason="missing_key")
-                
-                raise HTTPException(
-                    status_code=401,
-                    detail="API key required. Include X-API-Key header or Authorization: Bearer <key>"
-                )
-
-            # Constant-time comparison to prevent timing attacks
-            import hmac
-            if not hmac.compare_digest(api_key, CFG["api_key"]):
-                log.warning(f"Invalid API key attempt for {request.url.path} from {request.client.host if request.client else 'unknown'}")
-                
-                # Record auth failure
-                record_auth_event(success=False, reason="invalid_key")
-                
-                raise HTTPException(
-                    status_code=401,
-                    detail="Invalid API key"
-                )
-
-            # Record auth success
-            record_auth_event(success=True)
-            
-            # API key is valid, proceed with request
-            return await call_next(request)
-
-    # RELIABILITY: Request tracking middleware for graceful shutdown
-    class RequestTrackingMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(RequestTrackingMiddleware)
 
@@ -1897,6 +1891,23 @@ async def validate_step(validation_req: ValidatedValidationRequest):
             
             session_manager.update_session(session_id, state_dict)
             
+            # Trigger background tasks for FIR completion
+            # Note: Email is optional - would need to be collected from user in real implementation
+            fir_number = state_dict.get("fir_number")
+            if fir_number:
+                try:
+                    background_task_ids = fir_service.on_fir_completed(
+                        fir_number=fir_number,
+                        session_id=session_id,
+                        recipient_email=None,  # TODO: Get from user input if available
+                        generate_report=True,
+                        update_analytics=True
+                    )
+                    log.info(f"Background tasks triggered for FIR {fir_number}: {background_task_ids}")
+                except Exception as e:
+                    # Log error but don't fail the request
+                    log.error(f"Failed to trigger background tasks for FIR {fir_number}: {e}")
+            
             return ValidationResponse(
                 success=True,
                 session_id=session_id,
@@ -2026,6 +2037,17 @@ async def authenticate_fir(auth_req: ValidatedAuthRequest):
             raise HTTPException(status_code=400, detail="FIR already finalized")
         
         db.finalize_fir(auth_req.fir_number)
+        
+        # Trigger background tasks for FIR finalization
+        try:
+            background_task_ids = fir_service.on_fir_finalized(
+                fir_number=auth_req.fir_number,
+                recipient_email=None  # TODO: Get from user input if available
+            )
+            log.info(f"Finalization tasks triggered for FIR {auth_req.fir_number}: {background_task_ids}")
+        except Exception as e:
+            # Log error but don't fail the request
+            log.error(f"Failed to trigger finalization tasks for FIR {auth_req.fir_number}: {e}")
         
         return AuthResponse(
             success=True,
@@ -2224,6 +2246,33 @@ async def get_metrics():
         log.error(f"Metrics collection failed: {e}")
         return {"error": str(e)}
 
+@app.get("/prometheus/metrics")
+async def prometheus_metrics():
+    """
+    Prometheus metrics endpoint for scraping.
+    
+    Exposes all collected metrics in Prometheus exposition format.
+    This endpoint is designed to be scraped by Prometheus servers.
+    
+    Validates: Requirements 5.7
+    """
+    from fastapi.responses import Response
+    
+    try:
+        # Get metrics in Prometheus format
+        metrics_data = MetricsCollector.get_metrics()
+        content_type = MetricsCollector.get_content_type()
+        
+        # Return with proper Prometheus content type
+        return Response(
+            content=metrics_data,
+            media_type=content_type
+        )
+    except Exception as e:
+        log.error(f"Failed to generate Prometheus metrics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate metrics")
+
+
 @app.get("/reliability")
 async def get_reliability_status():
     """RELIABILITY: Endpoint for monitoring reliability components and uptime"""
@@ -2363,32 +2412,91 @@ def view_fir(fir_number: str):
     </html>
     """
 @app.get("/list_firs")
-async def list_firs(limit: Optional[int] = None, offset: Optional[int] = None):
-    """PERFORMANCE: Optimized list endpoint with async, minimal data, and validated pagination"""
+async def list_firs(
+    cursor: Optional[str] = None, 
+    limit: Optional[int] = None,
+    fields: Optional[str] = None
+):
+    """PERFORMANCE: Optimized list endpoint with cursor-based pagination and field filtering
+    
+    Requirements: 3.2, 3.3, 3.4
+    """
+    from utils.pagination import PaginationHandler
+    from utils.field_filter import FieldFilter
+    
     # Validate query parameters
     limit = validate_limit_param(limit, default=20, max_limit=100)
-    offset = validate_offset_param(offset, default=0)
+    
+    # Parse fields parameter
+    requested_fields = FieldFilter.parse_fields_param(fields)
+    
+    # Define allowed fields for FIR records
+    allowed_fields = ['fir_number', 'status', 'created_at', 'id']
+    
+    # Validate requested fields
+    if requested_fields:
+        if not FieldFilter.validate_fields(requested_fields, allowed_fields):
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid fields requested. Allowed fields: {', '.join(allowed_fields)}"
+            )
+    
+    # Decode cursor if provided
+    cursor_info = PaginationHandler.decode_cursor(cursor) if cursor else None
     
     def _list_firs():
         with db._cursor() as cur:
-            # PERFORMANCE: Only select needed columns, use index, support pagination
-            cur.execute(
-                "SELECT fir_number, status, created_at FROM fir_records "
-                "ORDER BY created_at DESC LIMIT %s OFFSET %s",
-                (limit, offset)
-            )
-            return cur.fetchall()
+            # Fetch limit+1 to check if there are more pages
+            fetch_limit = limit + 1
+            
+            # Build SELECT clause based on requested fields
+            if requested_fields:
+                # Always include 'id' and 'created_at' for pagination, even if not requested
+                select_fields = set(requested_fields) | {'id', 'created_at'}
+                select_clause = ', '.join(select_fields)
+            else:
+                select_clause = 'fir_number, status, created_at, id'
+            
+            if cursor_info:
+                # Use cursor-based pagination
+                cur.execute(
+                    f"SELECT {select_clause} FROM fir_records "
+                    "WHERE created_at < %s OR (created_at = %s AND id < %s) "
+                    "ORDER BY created_at DESC, id DESC LIMIT %s",
+                    (cursor_info.last_value, cursor_info.last_value, cursor_info.last_id, fetch_limit)
+                )
+            else:
+                # First page
+                cur.execute(
+                    f"SELECT {select_clause} FROM fir_records "
+                    "ORDER BY created_at DESC, id DESC LIMIT %s",
+                    (fetch_limit,)
+                )
+            
+            records = cur.fetchall()
+            
+            # Get total count for metadata
+            cur.execute("SELECT COUNT(*) as total FROM fir_records")
+            total_count = cur.fetchone()['total']
+            
+            return records, total_count
     
     # PERFORMANCE: Use async to avoid blocking
-    records = await asyncio.to_thread(_list_firs)
+    records, total_count = await asyncio.to_thread(_list_firs)
     
-    # PERFORMANCE: Return list directly without extra processing
-    return {
-        "records": records,
-        "limit": limit,
-        "offset": offset,
-        "count": len(records)
-    }
+    # Apply field filtering to records
+    if requested_fields:
+        records = FieldFilter.filter_fields(records, requested_fields)
+    
+    # Create paginated response
+    paginated = PaginationHandler.create_paginated_response(
+        items=records,
+        total_count=total_count,
+        limit=limit,
+        sort_field='created_at'
+    )
+    
+    return paginated.to_dict()
 
 
 if __name__ == "__main__":

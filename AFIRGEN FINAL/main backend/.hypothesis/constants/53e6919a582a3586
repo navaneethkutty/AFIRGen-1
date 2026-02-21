@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\services\session_service.py
+# hypothesis_version: 6.151.9
+
+['awaiting_validation', 'created_at', 'current_step', 'last_activity', 'session_id', 'state', 'status']

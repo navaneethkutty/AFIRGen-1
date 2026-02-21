@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\api\dependencies.py
+# hypothesis_version: 6.151.9
+
+[1.0, 2.0, 30.0, 60.0, 'model_server', 'sessions.db']

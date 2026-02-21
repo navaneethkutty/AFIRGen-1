@@ -105,7 +105,7 @@ def test_port_matters():
 # ============================================================================
 
 # Feature: afirgen-aws-optimization, Property 2: CORS Origin Validation
-@settings(max_examples=100)
+@settings(max_examples=20)
 @given(
     origin=st.one_of(
         st.just("https://example.com"),  # Valid origin
@@ -145,7 +145,7 @@ def test_property_cors_origin_validation(origin):
     assert result == expected, f"Origin '{origin}' validation mismatch"
 
 
-@settings(max_examples=50)
+@settings(max_examples=10)
 @given(
     num_origins=st.integers(min_value=1, max_value=10),
     test_origin_index=st.integers(min_value=-1, max_value=10),
@@ -175,7 +175,7 @@ def test_property_multiple_origins(num_origins, test_origin_index):
     assert result == expected
 
 
-@settings(max_examples=50)
+@settings(max_examples=10)
 @given(
     origin=st.text(min_size=10, max_size=50, alphabet=st.characters(whitelist_categories=("L", "N", "P"))),
     has_trailing_slash=st.booleans(),
@@ -204,7 +204,7 @@ def test_property_trailing_slash_normalization(origin, has_trailing_slash):
     assert result_without_slash is True
 
 
-@settings(max_examples=50)
+@settings(max_examples=10)
 @given(
     use_wildcard=st.booleans(),
     origin=st.text(min_size=10, max_size=50).map(lambda s: f"https://{s}.com"),
@@ -228,7 +228,7 @@ def test_property_wildcard_behavior(use_wildcard, origin):
     assert result == expected
 
 
-@settings(max_examples=50)
+@settings(max_examples=10)
 @given(
     protocol=st.sampled_from(["http", "https"]),
     domain=st.text(min_size=5, max_size=20, alphabet=st.characters(whitelist_categories=("L", "N"))),

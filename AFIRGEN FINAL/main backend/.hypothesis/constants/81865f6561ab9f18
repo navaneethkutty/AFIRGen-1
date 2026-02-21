@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\repositories\fir_repository.py
+# hypothesis_version: 6.151.9
+
+[300, 1800, 3600, '%s', '*', ', ', 'FIR', 'assigned_to', 'count:*', 'created_at', 'created_at DESC', 'description', 'f.id = v.fir_id', 'fir', 'firs', 'id', 'list:*', 'priority', 'query:*', 'record', 'severity', 'stats:*', 'status', 'updated_at', 'user', 'user:*', 'user_id', 'v', 'violation_', 'violation_id', 'violation_text', 'violation_type', 'violations']

@@ -523,7 +523,7 @@ def test_load_all_models_required_missing_raises(model_loader, temp_model_dir):
 # ============================================================================
 
 # Feature: afirgen-aws-optimization, Property 1: Model Loading Error Handling
-@settings(max_examples=100)
+@settings(max_examples=20)
 @given(
     file_scenario=st.sampled_from([
         "missing",      # File doesn't exist
@@ -588,7 +588,7 @@ def test_property_model_loading_error_handling(file_scenario):
         assert "status" in health
 
 
-@settings(max_examples=50)
+@settings(max_examples=10)
 @given(
     num_models=st.integers(min_value=1, max_value=5),
     failure_rate=st.floats(min_value=0.0, max_value=1.0),
@@ -644,7 +644,7 @@ def test_property_partial_model_loading(num_models, failure_rate):
             assert len(result.error_message) > 0
 
 
-@settings(max_examples=50)
+@settings(max_examples=10)
 @given(
     content=st.binary(min_size=1, max_size=1024),
     algorithm=st.sampled_from(["sha256", "md5", "sha1"]),

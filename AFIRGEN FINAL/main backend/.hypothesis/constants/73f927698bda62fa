@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\infrastructure\tasks\email_tasks.py
+# hypothesis_version: 6.151.9
+
+[1.0, 2.0, 600.0, 600, 'fir_id', 'message', 'recipient', 'status', 'subject', 'success']

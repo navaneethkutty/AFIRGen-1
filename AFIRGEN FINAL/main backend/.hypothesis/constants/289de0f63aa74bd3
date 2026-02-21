@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\infrastructure\tasks\cleanup_tasks.py
+# hypothesis_version: 6.151.9
+
+[365, 'days_old', 'entries_cleared', 'files_deleted', 'max_age_hours', 'message', 'records_archived', 'status', 'success']
