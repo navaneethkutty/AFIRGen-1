@@ -1613,10 +1613,10 @@ class RequestTrackingMiddleware(BaseHTTPMiddleware):
             return response
         except RuntimeError as e:
             if "shutting down" in str(e):
-                return HTTPException(
+                return JSONResponse(
                     status_code=503,
-                    detail="Server is shutting down"
-                ).to_response()
+                    content={"detail": "Server is shutting down"}
+                )
             raise
         except Exception as e:
             # Record error metrics
@@ -1630,67 +1630,6 @@ class RequestTrackingMiddleware(BaseHTTPMiddleware):
             raise
         finally:
             graceful_shutdown.request_completed()
-
-    # API Authentication middleware
-    class APIAuthMiddleware(BaseHTTPMiddleware):
-        """Middleware to enforce API key authentication on all endpoints except health check"""
-
-        # Public endpoints that don't require authentication
-        PUBLIC_ENDPOINTS = {"/health", "/docs", "/redoc", "/openapi.json"}
-
-        async def dispatch(self, request: Request, call_next):
-            # Skip authentication for public endpoints
-            if request.url.path in self.PUBLIC_ENDPOINTS:
-                return await call_next(request)
-
-            # Get API key from header
-            api_key = request.headers.get("X-API-Key") or request.headers.get("Authorization")
-
-            # Handle Authorization header with Bearer scheme
-            if api_key and api_key.startswith("Bearer "):
-                api_key = api_key[7:]  # Remove "Bearer " prefix
-
-            # Validate API key exists in config
-            if not CFG.get("api_key"):
-                log.error("API authentication attempted but API_KEY not configured")
-                raise HTTPException(
-                    status_code=500,
-                    detail="API authentication not properly configured"
-                )
-
-            # Validate API key
-            if not api_key:
-                log.warning(f"Missing API key for {request.url.path} from {request.client.host if request.client else 'unknown'}")
-                
-                # Record auth failure
-                record_auth_event(success=False, reason="missing_key")
-                
-                raise HTTPException(
-                    status_code=401,
-                    detail="API key required. Include X-API-Key header or Authorization: Bearer <key>"
-                )
-
-            # Constant-time comparison to prevent timing attacks
-            import hmac
-            if not hmac.compare_digest(api_key, CFG["api_key"]):
-                log.warning(f"Invalid API key attempt for {request.url.path} from {request.client.host if request.client else 'unknown'}")
-                
-                # Record auth failure
-                record_auth_event(success=False, reason="invalid_key")
-                
-                raise HTTPException(
-                    status_code=401,
-                    detail="Invalid API key"
-                )
-
-            # Record auth success
-            record_auth_event(success=True)
-            
-            # API key is valid, proceed with request
-            return await call_next(request)
-
-    # RELIABILITY: Request tracking middleware for graceful shutdown
-    class RequestTrackingMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(RequestTrackingMiddleware)
 
