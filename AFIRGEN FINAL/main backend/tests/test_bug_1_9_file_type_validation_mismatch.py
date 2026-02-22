@@ -71,27 +71,36 @@ def test_frontend_backend_file_type_mismatch():
         if 'ALLOWED_EXTENSIONS' in line and '=' in line:
             backend_extensions = line.strip()
     
-    # Find frontend allowed types (around line 83)
+    # Find frontend allowed types - check for centralized constants (Bug 2.2 fix)
     frontend_default_types = None
     frontend_line_num = None
     
+    # First check for centralized constants (post-fix)
     for i, line in enumerate(frontend_lines):
-        if 'function validateFileType' in line and 'allowedTypes' in line:
-            # Look for the default parameter value
-            if '[' in line:
-                frontend_default_types = line.strip()
-                frontend_line_num = i + 1
-            else:
-                # Check next line for default value
-                for j in range(i, min(i + 5, len(frontend_lines))):
-                    if 'allowedTypes' in frontend_lines[j] and '[' in frontend_lines[j]:
-                        frontend_default_types = frontend_lines[j].strip()
-                        frontend_line_num = j + 1
-                        break
+        if 'const ALLOWED_IMAGE_TYPES' in line or 'const ALLOWED_FILE_TYPES' in line:
+            frontend_default_types = line.strip()
+            frontend_line_num = i + 1
+            break
+    
+    # If not found, check for old function parameter default (pre-fix)
+    if frontend_default_types is None:
+        for i, line in enumerate(frontend_lines):
+            if 'function validateFileType' in line and 'allowedTypes' in line:
+                # Look for the default parameter value
+                if '[' in line:
+                    frontend_default_types = line.strip()
+                    frontend_line_num = i + 1
+                else:
+                    # Check next line for default value
+                    for j in range(i, min(i + 5, len(frontend_lines))):
+                        if 'allowedTypes' in frontend_lines[j] and '[' in frontend_lines[j]:
+                            frontend_default_types = frontend_lines[j].strip()
+                            frontend_line_num = j + 1
+                            break
     
     assert backend_image_types is not None, "Could not find ALLOWED_IMAGE_TYPES in backend"
     assert backend_extensions is not None, "Could not find ALLOWED_EXTENSIONS in backend"
-    assert frontend_default_types is not None, "Could not find allowedTypes default in frontend"
+    assert frontend_default_types is not None, "Could not find file type configuration in frontend (ALLOWED_IMAGE_TYPES, ALLOWED_AUDIO_TYPES, ALLOWED_FILE_TYPES, or allowedTypes parameter)"
     
     # Check for .pdf in frontend
     frontend_allows_pdf = '.pdf' in frontend_default_types

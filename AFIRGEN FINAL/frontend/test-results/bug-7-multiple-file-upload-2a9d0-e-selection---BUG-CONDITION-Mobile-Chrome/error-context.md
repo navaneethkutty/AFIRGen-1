@@ -1,0 +1,129 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - navigation "Main navigation" [ref=e3]:
+    - heading "AFIRGen" [level=1] [ref=e4]
+    - menubar [ref=e5]:
+      - menuitem "Navigate to Team page" [ref=e6] [cursor=pointer]: Team
+      - menuitem "Navigate to About page" [ref=e7] [cursor=pointer]: About
+      - menuitem "Navigate to Home page" [ref=e8] [cursor=pointer]: Home
+  - generic [ref=e9]:
+    - complementary "FIR list and location information" [ref=e10]:
+      - region "Current location and time" [ref=e11]:
+        - 'generic "Current location: Moggapair West (V7)" [ref=e15]': Moggapair West (V7)
+        - generic [ref=e16]:
+          - img [ref=e17]
+          - generic "Current time" [ref=e20]: Feb 22, 2026, 02:23 PM
+      - group "FIR history search and filter controls" [ref=e21]:
+        - generic [ref=e22]:
+          - generic [ref=e23]: Search FIR history
+          - textbox "Search FIR by number, complainant, or date" [ref=e24]:
+            - /placeholder: Search FIR...
+          - img
+        - generic [ref=e25]:
+          - generic [ref=e26]: Filter by status
+          - combobox "Filter FIR by status" [ref=e27] [cursor=pointer]:
+            - option "All Status" [selected]
+            - option "Pending"
+            - option "Investigating"
+            - option "Closed"
+          - generic [ref=e28]: Sort FIR list
+          - combobox "Sort FIR list" [ref=e29] [cursor=pointer]:
+            - option "Newest First" [selected]
+            - option "Oldest First"
+            - option "By Status"
+      - list "FIR cases" [ref=e30]:
+        - status [ref=e31]:
+          - generic [ref=e33]: Loading FIR history...
+        - status [ref=e34]:
+          - img [ref=e35]
+          - paragraph [ref=e38]: No FIR records found
+        - 'listitem "FIR #2026/015, Emily Davis - Property Damage, Status: closed" [ref=e39] [cursor=pointer]':
+          - generic [ref=e40]: "FIR #2026/015"
+          - generic [ref=e41]: Emily Davis - Property Damage
+          - generic [ref=e42]: Closed
+        - 'listitem "FIR #2026/009, Mary Martinez - Missing Person, Status: investigating" [ref=e43] [cursor=pointer]':
+          - generic [ref=e44]: "FIR #2026/009"
+          - generic [ref=e45]: Mary Martinez - Missing Person
+          - generic [ref=e46]: Investigating
+        - 'listitem "FIR #2026/012, Michael Johnson - Fraud Case, Status: pending" [ref=e47] [cursor=pointer]':
+          - generic [ref=e48]: "FIR #2026/012"
+          - generic [ref=e49]: Michael Johnson - Fraud Case
+          - generic [ref=e50]: Pending
+        - 'listitem "FIR #2026/014, Robert Brown - Assault Case, Status: investigating" [ref=e51] [cursor=pointer]':
+          - generic [ref=e52]: "FIR #2026/014"
+          - generic [ref=e53]: Robert Brown - Assault Case
+          - generic [ref=e54]: Investigating
+        - 'listitem "FIR #2026/005, Emily Davis - Property Damage, Status: closed" [ref=e55] [cursor=pointer]':
+          - generic [ref=e56]: "FIR #2026/005"
+          - generic [ref=e57]: Emily Davis - Property Damage
+          - generic [ref=e58]: Closed
+        - 'listitem "FIR #2026/007, Lisa Anderson - Burglary, Status: closed" [ref=e59] [cursor=pointer]':
+          - generic [ref=e60]: "FIR #2026/007"
+          - generic [ref=e61]: Lisa Anderson - Burglary
+          - generic [ref=e62]: Closed
+        - 'listitem "FIR #2026/006, David Wilson - Harassment, Status: closed" [ref=e63] [cursor=pointer]':
+          - generic [ref=e64]: "FIR #2026/006"
+          - generic [ref=e65]: David Wilson - Harassment
+          - generic [ref=e66]: Closed
+        - 'listitem "FIR #2026/018, James Taylor - Vandalism, Status: closed" [ref=e67] [cursor=pointer]':
+          - generic [ref=e68]: "FIR #2026/018"
+          - generic [ref=e69]: James Taylor - Vandalism
+          - generic [ref=e70]: Closed
+        - 'listitem "FIR #2026/023, Sarah Williams - Theft Report, Status: pending" [ref=e71] [cursor=pointer]':
+          - generic [ref=e72]: "FIR #2026/023"
+          - generic [ref=e73]: Sarah Williams - Theft Report
+          - generic [ref=e74]: Pending
+        - 'listitem "FIR #2026/016, David Wilson - Harassment, Status: closed" [ref=e75] [cursor=pointer]':
+          - generic [ref=e76]: "FIR #2026/016"
+          - generic [ref=e77]: David Wilson - Harassment
+          - generic [ref=e78]: Closed
+      - navigation "FIR list pagination" [ref=e79]:
+        - button "Previous page" [disabled] [ref=e80]:
+          - img [ref=e81]
+        - generic [ref=e83]: Page 1 of 3
+        - button "Next page" [ref=e84] [cursor=pointer]:
+          - img [ref=e85]
+    - main [ref=e87]:
+      - generic [ref=e89]:
+        - heading "AFIRGen" [level=1] [ref=e90]
+        - generic [ref=e91]:
+          - generic [ref=e92]:
+            - heading "Step 1" [level=3] [ref=e93]
+            - paragraph [ref=e94]: Upload your complaint letter or document. Our AI will analyze the content and extract relevant information for FIR generation.
+          - generic [ref=e95]:
+            - heading "Step 2" [level=3] [ref=e96]
+            - paragraph [ref=e97]: Optionally upload audio recordings of witness statements to enhance the FIR details.
+          - generic [ref=e98]:
+            - heading "Step 3" [level=3] [ref=e99]
+            - paragraph [ref=e100]: Review the auto-generated FIR content, make necessary edits, and submit for official processing.
+        - generic [ref=e101]:
+          - group "File upload controls" [ref=e102]:
+            - generic "Upload complaint letter or document":
+              - img
+              - generic: Upload Letter
+              - generic: or drag and drop here
+            - generic "Upload audio recording of witness statement" [ref=e103] [cursor=pointer]:
+              - img [ref=e104]
+              - generic [ref=e107]: test_audio.wav
+              - generic [ref=e108]: or drag and drop here
+          - button "Generate FIR from uploaded files" [ref=e109] [cursor=pointer]:
+            - img [ref=e110]
+        - status [ref=e112]: Ready to generate FIR
+  - generic:
+    - alert [ref=e113]:
+      - img [ref=e115]
+      - generic [ref=e119]: "Letter file uploaded: test_letter.jpg"
+      - generic "Close notification" [ref=e120] [cursor=pointer]:
+        - img [ref=e121]
+    - alert [ref=e124]:
+      - img [ref=e126]
+      - generic [ref=e130]: "Audio file uploaded: test_audio.wav"
+      - generic "Close notification" [ref=e131] [cursor=pointer]:
+        - img [ref=e132]
+  - status [ref=e135]: "Success: Audio file uploaded: test_audio.wav"
+  - alert [ref=e136]
+```

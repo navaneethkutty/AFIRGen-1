@@ -1,0 +1,120 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - link "Skip to main content" [ref=e2]:
+    - /url: "#main-content"
+  - navigation "Main navigation" [ref=e3]:
+    - heading "AFIRGen" [level=1] [ref=e4]
+    - menubar [ref=e5]:
+      - menuitem "Navigate to Team page" [ref=e6] [cursor=pointer]: Team
+      - menuitem "Navigate to About page" [ref=e7] [cursor=pointer]: About
+      - menuitem "Navigate to Home page" [ref=e8] [cursor=pointer]: Home
+  - generic [ref=e9]:
+    - complementary "FIR list and location information" [ref=e10]:
+      - region "Current location and time" [ref=e11]:
+        - 'generic "Current location: Moggapair West (V7)" [ref=e15]': Moggapair West (V7)
+        - generic "Current time" [ref=e19]: Feb 22, 2026, 02:24 PM
+      - group "FIR history search and filter controls" [ref=e20]:
+        - generic [ref=e21]:
+          - generic [ref=e22]: Search FIR history
+          - textbox "Search FIR by number, complainant, or date" [ref=e23]:
+            - /placeholder: Search FIR...
+          - img
+        - generic [ref=e24]:
+          - generic [ref=e25]: Filter by status
+          - combobox "Filter FIR by status" [ref=e26] [cursor=pointer]:
+            - option "All Status" [selected]
+            - option "Pending"
+            - option "Investigating"
+            - option "Closed"
+          - generic [ref=e27]: Sort FIR list
+          - combobox "Sort FIR list" [ref=e28] [cursor=pointer]:
+            - option "Newest First" [selected]
+            - option "Oldest First"
+            - option "By Status"
+      - list "FIR cases" [ref=e29]:
+        - status [ref=e30]:
+          - generic [ref=e32]: Loading FIR history...
+        - status [ref=e33]:
+          - img [ref=e34]
+          - paragraph [ref=e37]: No FIR records found
+        - 'listitem "FIR #2026/013, Sarah Williams - Theft Report, Status: investigating" [ref=e38] [cursor=pointer]':
+          - generic: "FIR #2026/013"
+          - generic: Sarah Williams - Theft Report
+          - generic [ref=e39]: Investigating
+        - 'listitem "FIR #2026/020, John Doe - Downtown Market, Status: pending" [ref=e40] [cursor=pointer]':
+          - generic: "FIR #2026/020"
+          - generic: John Doe - Downtown Market
+          - generic [ref=e41]: Pending
+        - 'listitem "FIR #2026/005, Emily Davis - Property Damage, Status: pending" [ref=e42] [cursor=pointer]':
+          - generic: "FIR #2026/005"
+          - generic: Emily Davis - Property Damage
+          - generic [ref=e43]: Pending
+        - 'listitem "FIR #2026/002, Michael Johnson - Fraud Case, Status: pending" [ref=e44] [cursor=pointer]':
+          - generic: "FIR #2026/002"
+          - generic: Michael Johnson - Fraud Case
+          - generic [ref=e45]: Pending
+        - 'listitem "FIR #2026/022, Michael Johnson - Fraud Case, Status: pending" [ref=e46] [cursor=pointer]':
+          - generic: "FIR #2026/022"
+          - generic: Michael Johnson - Fraud Case
+          - generic [ref=e47]: Pending
+        - 'listitem "FIR #2026/001, Jane Smith - Parking Dispute, Status: investigating" [ref=e48] [cursor=pointer]':
+          - generic: "FIR #2026/001"
+          - generic: Jane Smith - Parking Dispute
+          - generic [ref=e49]: Investigating
+        - 'listitem "FIR #2026/025, Emily Davis - Property Damage, Status: pending" [ref=e50] [cursor=pointer]':
+          - generic: "FIR #2026/025"
+          - generic: Emily Davis - Property Damage
+          - generic [ref=e51]: Pending
+        - 'listitem "FIR #2026/019, Mary Martinez - Missing Person, Status: investigating" [ref=e52] [cursor=pointer]':
+          - generic: "FIR #2026/019"
+          - generic: Mary Martinez - Missing Person
+          - generic [ref=e53]: Investigating
+        - 'listitem "FIR #2026/009, Mary Martinez - Missing Person, Status: investigating" [ref=e54] [cursor=pointer]':
+          - generic: "FIR #2026/009"
+          - generic: Mary Martinez - Missing Person
+          - generic [ref=e55]: Investigating
+        - 'listitem "FIR #2026/018, James Taylor - Vandalism, Status: closed" [ref=e56] [cursor=pointer]':
+          - generic: "FIR #2026/018"
+          - generic: James Taylor - Vandalism
+          - generic [ref=e57]: Closed
+      - navigation "FIR list pagination" [ref=e58]:
+        - button "Previous page" [disabled] [ref=e59]:
+          - img [ref=e60]
+        - generic [ref=e62]: Page 1 of 3
+        - button "Next page" [ref=e63] [cursor=pointer]:
+          - img [ref=e64]
+    - main [ref=e66]:
+      - generic [ref=e68]:
+        - heading "AFIRGen" [level=1] [ref=e69]
+        - generic [ref=e70]:
+          - generic [ref=e71]:
+            - heading "Step 1" [level=3] [ref=e72]
+            - paragraph [ref=e73]: Upload your complaint letter or document. Our AI will analyze the content and extract relevant information for FIR generation.
+          - generic [ref=e74]:
+            - heading "Step 2" [level=3] [ref=e75]
+            - paragraph [ref=e76]: Optionally upload audio recordings of witness statements to enhance the FIR details.
+          - generic [ref=e77]:
+            - heading "Step 3" [level=3] [ref=e78]
+            - paragraph [ref=e79]: Review the auto-generated FIR content, make necessary edits, and submit for official processing.
+        - generic [ref=e80]:
+          - group "File upload controls" [ref=e81]:
+            - generic "Upload complaint letter or document" [ref=e82] [cursor=pointer]:
+              - img [ref=e83]
+              - generic [ref=e86]: Upload Letter
+              - generic [ref=e87]: or drag and drop here
+            - generic "Upload audio recording of witness statement" [ref=e88] [cursor=pointer]:
+              - img [ref=e89]
+              - generic [ref=e92]: Upload Audio
+              - generic [ref=e93]: or drag and drop here
+          - button "Generate FIR from uploaded files" [disabled] [ref=e94]:
+            - img [ref=e95]
+  - alert [ref=e97]:
+    - img [ref=e99]
+    - generic [ref=e102]: "File type not allowed. Allowed types: .mp3, .wav. Please upload a file in one of these formats: JPG, PNG, PDF, WAV, or MP3."
+    - generic "Close notification" [ref=e103] [cursor=pointer]:
+      - img [ref=e104]
+  - status [ref=e107]: "File type not allowed. Allowed types: .mp3, .wav. Please upload a file in one of these formats: JPG, PNG, PDF, WAV, or MP3."
+  - alert [ref=e108]
+```

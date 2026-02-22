@@ -18,7 +18,7 @@
           - 'generic "Current location: Moggapair West (V7)" [ref=e16]': Moggapair West (V7)
         - generic [ref=e17]:
           - img [ref=e18]
-          - generic "Current time" [ref=e21]: Feb 22, 2026, 02:10 PM
+          - generic "Current time" [ref=e21]: Feb 22, 2026, 02:21 PM
       - group "FIR history search and filter controls" [ref=e22]:
         - generic [ref=e23]:
           - generic [ref=e24]: Search FIR history
@@ -43,46 +43,46 @@
         - status [ref=e35]:
           - img [ref=e36]
           - paragraph [ref=e39]: No FIR records found
-        - 'listitem "FIR #2026/011, Jane Smith - Parking Dispute, Status: pending" [ref=e40] [cursor=pointer]':
-          - generic [ref=e41]: "FIR #2026/011"
-          - generic [ref=e42]: Jane Smith - Parking Dispute
+        - 'listitem "FIR #2026/024, Robert Brown - Assault Case, Status: pending" [ref=e40] [cursor=pointer]':
+          - generic [ref=e41]: "FIR #2026/024"
+          - generic [ref=e42]: Robert Brown - Assault Case
           - generic [ref=e43]: Pending
-        - 'listitem "FIR #2026/010, John Doe - Downtown Market, Status: closed" [ref=e44] [cursor=pointer]':
-          - generic [ref=e45]: "FIR #2026/010"
+        - 'listitem "FIR #2026/020, John Doe - Downtown Market, Status: pending" [ref=e44] [cursor=pointer]':
+          - generic [ref=e45]: "FIR #2026/020"
           - generic [ref=e46]: John Doe - Downtown Market
-          - generic [ref=e47]: Closed
-        - 'listitem "FIR #2026/003, Sarah Williams - Theft Report, Status: pending" [ref=e48] [cursor=pointer]':
-          - generic [ref=e49]: "FIR #2026/003"
-          - generic [ref=e50]: Sarah Williams - Theft Report
-          - generic [ref=e51]: Pending
-        - 'listitem "FIR #2026/013, Sarah Williams - Theft Report, Status: closed" [ref=e52] [cursor=pointer]':
-          - generic [ref=e53]: "FIR #2026/013"
-          - generic [ref=e54]: Sarah Williams - Theft Report
+          - generic [ref=e47]: Pending
+        - 'listitem "FIR #2026/004, Robert Brown - Assault Case, Status: closed" [ref=e48] [cursor=pointer]':
+          - generic [ref=e49]: "FIR #2026/004"
+          - generic [ref=e50]: Robert Brown - Assault Case
+          - generic [ref=e51]: Closed
+        - 'listitem "FIR #2026/014, Robert Brown - Assault Case, Status: closed" [ref=e52] [cursor=pointer]':
+          - generic [ref=e53]: "FIR #2026/014"
+          - generic [ref=e54]: Robert Brown - Assault Case
           - generic [ref=e55]: Closed
-        - 'listitem "FIR #2026/002, Michael Johnson - Fraud Case, Status: pending" [ref=e56] [cursor=pointer]':
-          - generic [ref=e57]: "FIR #2026/002"
-          - generic [ref=e58]: Michael Johnson - Fraud Case
-          - generic [ref=e59]: Pending
-        - 'listitem "FIR #2026/005, Emily Davis - Property Damage, Status: pending" [ref=e60] [cursor=pointer]':
-          - generic [ref=e61]: "FIR #2026/005"
-          - generic [ref=e62]: Emily Davis - Property Damage
-          - generic [ref=e63]: Pending
-        - 'listitem "FIR #2026/007, Lisa Anderson - Burglary, Status: pending" [ref=e64] [cursor=pointer]':
-          - generic [ref=e65]: "FIR #2026/007"
-          - generic [ref=e66]: Lisa Anderson - Burglary
+        - 'listitem "FIR #2026/025, Emily Davis - Property Damage, Status: investigating" [ref=e56] [cursor=pointer]':
+          - generic [ref=e57]: "FIR #2026/025"
+          - generic [ref=e58]: Emily Davis - Property Damage
+          - generic [ref=e59]: Investigating
+        - 'listitem "FIR #2026/012, Michael Johnson - Fraud Case, Status: closed" [ref=e60] [cursor=pointer]':
+          - generic [ref=e61]: "FIR #2026/012"
+          - generic [ref=e62]: Michael Johnson - Fraud Case
+          - generic [ref=e63]: Closed
+        - 'listitem "FIR #2026/023, Sarah Williams - Theft Report, Status: pending" [ref=e64] [cursor=pointer]':
+          - generic [ref=e65]: "FIR #2026/023"
+          - generic [ref=e66]: Sarah Williams - Theft Report
           - generic [ref=e67]: Pending
-        - 'listitem "FIR #2026/019, Mary Martinez - Missing Person, Status: pending" [ref=e68] [cursor=pointer]':
-          - generic [ref=e69]: "FIR #2026/019"
-          - generic [ref=e70]: Mary Martinez - Missing Person
+        - 'listitem "FIR #2026/015, Emily Davis - Property Damage, Status: pending" [ref=e68] [cursor=pointer]':
+          - generic [ref=e69]: "FIR #2026/015"
+          - generic [ref=e70]: Emily Davis - Property Damage
           - generic [ref=e71]: Pending
-        - 'listitem "FIR #2026/016, David Wilson - Harassment, Status: closed" [ref=e72] [cursor=pointer]':
-          - generic [ref=e73]: "FIR #2026/016"
-          - generic [ref=e74]: David Wilson - Harassment
-          - generic [ref=e75]: Closed
-        - 'listitem "FIR #2026/008, James Taylor - Vandalism, Status: investigating" [ref=e76] [cursor=pointer]':
-          - generic [ref=e77]: "FIR #2026/008"
-          - generic [ref=e78]: James Taylor - Vandalism
-          - generic [ref=e79]: Investigating
+        - 'listitem "FIR #2026/005, Emily Davis - Property Damage, Status: investigating" [ref=e72] [cursor=pointer]':
+          - generic [ref=e73]: "FIR #2026/005"
+          - generic [ref=e74]: Emily Davis - Property Damage
+          - generic [ref=e75]: Investigating
+        - 'listitem "FIR #2026/017, Lisa Anderson - Burglary, Status: closed" [ref=e76] [cursor=pointer]':
+          - generic [ref=e77]: "FIR #2026/017"
+          - generic [ref=e78]: Lisa Anderson - Burglary
+          - generic [ref=e79]: Closed
       - navigation "FIR list pagination" [ref=e80]:
         - button "Previous page" [disabled] [ref=e81]:
           - img [ref=e82]

@@ -55,4 +55,10 @@ def create_valid_wav_audio(duration_seconds: float = 1.0) -> bytes:
     return buffer.read()
 
 
-def create
+def create_valid_image() -> bytes:
+    """Create a valid PNG image file."""
+    buffer = io.BytesIO()
+    img = Image.new('RGB', (100, 100), color='white')
+    img.save(buffer, format='PNG')
+    buffer.seek(0)
+    return buffer.read()

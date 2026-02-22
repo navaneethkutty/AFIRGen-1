@@ -1,25 +1,28 @@
 """
 Bug Condition Exploration Test for Bug 1.8 - Multiple File Upload Rejection
 
-**Validates: Requirement 1.8**
+**Validates: Requirement 1.8, 2.8**
 
-Property 1: Fault Condition - Multiple Input Rejection
+Property 1: Backend Validation - Single Input Enforcement
 
-CRITICAL: This test MUST FAIL on unfixed code - failure confirms the bug exists.
-DO NOT attempt to fix the test or the code when it fails.
-GOAL: Surface counterexamples that demonstrate the bug exists.
+DECISION (Task 3.1): Option B - Keep backend restriction, improve frontend UX
+- Backend validation SHOULD remain to enforce single-input restriction
+- Frontend SHOULD prevent multiple file selection before submission
+- This test verifies backend validation is working correctly
 
-Bug Description:
-When the frontend uploads both audio and image files simultaneously (or any combination
-of multiple input types), the backend validation at agentv5.py lines 1717-1720 rejects
-the request with a 400 error: "Please provide only one input type (audio, image, or text)".
+Bug Description (RESOLVED):
+The backend validation at agentv5.py lines 1717-1720 correctly rejects requests
+with multiple input types. The fix was to improve frontend UX to prevent users
+from selecting multiple files, not to remove backend validation.
 
-Expected Behavior (After Fix):
-The backend should accept and process multiple files when input_count > 1, OR
-the frontend should prevent multiple file selection before submission.
+Expected Behavior (After Fix - Option B):
+- Backend validation REMAINS and rejects input_count > 1 (security layer)
+- Frontend prevents multiple file selection (UX improvement)
+- Users cannot trigger the backend rejection because frontend blocks it
 
-Current Behavior (Unfixed):
-The backend rejects requests when input_count > 1, causing unexpected failure after upload.
+Current Behavior:
+Backend validation correctly enforces single-input restriction.
+Frontend has been updated to disable second input when one is selected.
 """
 
 import pytest
@@ -29,15 +32,16 @@ from pathlib import Path
 
 def test_backend_validation_rejects_multiple_inputs():
     """
-    Test that verifies the backend validation logic rejects multiple input types.
+    Test that verifies the backend validation logic correctly rejects multiple input types.
     
-    **Validates: Requirement 1.8**
+    **Validates: Requirement 1.8, 2.8**
     
-    Bug Condition: POST /process with input_count > 1 (multiple of: audio, image, text)
-    Expected Behavior (after fix): Backend accepts and processes multiple inputs
+    DECISION: Option B - Keep backend validation as security layer
     
-    On UNFIXED code: This test will FAIL because validation rejects input_count > 1
-    On FIXED code: This test will PASS because validation allows multiple inputs
+    Expected Behavior: Backend validation SHOULD exist and reject input_count > 1
+    This is CORRECT behavior after choosing Option B in task 3.1
+    
+    On FIXED code: This test will PASS because validation correctly rejects multiple inputs
     """
     # Get the path to agentv5.py
     backend_dir = Path(__file__).parent.parent
@@ -74,47 +78,36 @@ def test_backend_validation_rejects_multiple_inputs():
             break
     
     if validation_found:
-        pytest.fail(
-            f"BUG CONFIRMED: Backend rejects multiple input types\n"
+        # SUCCESS: Backend validation is correctly in place (Option B decision)
+        assert True, (
+            f"✓ CORRECT: Backend validation enforces single-input restriction\n"
             f"\n"
-            f"Bug Condition Triggered:\n"
-            f"  - POST /process with multiple input types (audio + image, audio + text, etc.)\n"
-            f"  - Backend validation at agentv5.py lines {validation_line_num}-{rejection_line_num}\n"
+            f"Decision (Task 3.1): Option B - Keep backend restriction, improve frontend UX\n"
             f"\n"
-            f"Validation Logic:\n"
-            f"  Line {validation_line_num}: {lines[validation_line_num - 1].strip()}\n"
-            f"  Line {validation_line_num + 1}: {lines[validation_line_num].strip()}\n"
-            f"  Line {rejection_line_num}: {lines[rejection_line_num - 1].strip()}\n"
+            f"Backend Validation (CORRECT):\n"
+            f"  - Location: agentv5.py lines {validation_line_num}-{rejection_line_num}\n"
+            f"  - Logic: {lines[validation_line_num - 1].strip()}\n"
+            f"  - Condition: {lines[validation_line_num].strip()}\n"
+            f"  - Action: {lines[rejection_line_num - 1].strip()}\n"
             f"\n"
-            f"Current Behavior (UNFIXED):\n"
-            f"  1. Calculate input_count = sum([bool(audio), bool(image), bool(text)])\n"
-            f"  2. If input_count > 1, raise HTTPException with 400 status\n"
-            f"  3. Error message: 'Please provide only one input type (audio, image, or text)'\n"
+            f"Expected Behavior (Option B):\n"
+            f"  1. Backend validation REMAINS as security layer\n"
+            f"  2. Frontend prevents multiple file selection (UX fix)\n"
+            f"  3. Users cannot trigger backend rejection\n"
             f"\n"
-            f"Expected Behavior (FIXED):\n"
-            f"  - Backend should accept and process multiple input types\n"
-            f"  - Remove or modify the validation to allow input_count > 1\n"
-            f"  - Enable richer FIR generation from multiple sources\n"
-            f"\n"
-            f"Root Cause:\n"
-            f"  The backend intentionally restricts to one input type at a time.\n"
-            f"  This prevents users from providing richer context (e.g., letter + audio statement).\n"
-            f"\n"
-            f"Impact:\n"
-            f"  - Users cannot provide multiple forms of evidence\n"
-            f"  - Limits FIR generation capabilities\n"
-            f"  - Poor user experience if frontend allows selection\n"
-            f"  - Wasted bandwidth uploading files that will be rejected\n"
-            f"\n"
-            f"Fix Options:\n"
-            f"  Option A: Remove the validation (lines {validation_line_num}-{rejection_line_num}) to allow multiple inputs\n"
-            f"  Option B: Keep restriction, ensure frontend prevents multiple selection before submission\n"
-            f"\n"
-            f"This confirms Bug 1.8 exists.\n"
+            f"This validation is working as designed."
         )
-    
-    # If we reach here, the validation is removed (bug is fixed)
-    # The test passes, confirming the expected behavior
+    else:
+        pytest.fail(
+            f"ERROR: Backend validation is missing!\n"
+            f"\n"
+            f"Expected: Backend should have validation at agentv5.py lines 1717-1720\n"
+            f"  - input_count = sum([bool(audio), bool(image), bool(text)])\n"
+            f"  - if input_count > 1: raise HTTPException(status_code=400, ...)\n"
+            f"\n"
+            f"Decision (Task 3.1): Option B requires backend validation to remain.\n"
+            f"The validation acts as a security layer while frontend prevents the error state."
+        )
 
 
 def test_document_multiple_input_rejection_logic():

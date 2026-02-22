@@ -1,0 +1,137 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - link "Skip to main content" [ref=e2]:
+    - /url: "#main-content"
+  - navigation "Main navigation" [ref=e3]:
+    - heading "AFIRGen" [level=1] [ref=e4]
+    - menubar [ref=e5]:
+      - menuitem "Navigate to Team page" [ref=e6] [cursor=pointer]: Team
+      - menuitem "Navigate to About page" [ref=e7] [cursor=pointer]: About
+      - menuitem "Navigate to Home page" [ref=e8] [cursor=pointer]: Home
+  - generic [ref=e9]:
+    - complementary "FIR list and location information" [ref=e10]:
+      - region "Current location and time" [ref=e11]:
+        - 'generic "Current location: Moggapair West (V7)" [ref=e15]': Moggapair West (V7)
+        - generic "Current time" [ref=e19]: Feb 22, 2026, 02:24 PM
+      - group "FIR history search and filter controls" [ref=e20]:
+        - generic:
+          - generic [ref=e21]: Search FIR history
+          - textbox "Search FIR by number, complainant, or date" [ref=e22]:
+            - /placeholder: Search FIR...
+          - img
+        - generic:
+          - generic [ref=e23]: Filter by status
+          - combobox "Filter FIR by status" [ref=e24] [cursor=pointer]:
+            - option "All Status" [selected]
+            - option "Pending"
+            - option "Investigating"
+            - option "Closed"
+          - generic [ref=e25]: Sort FIR list
+          - combobox "Sort FIR list" [ref=e26] [cursor=pointer]:
+            - option "Newest First" [selected]
+            - option "Oldest First"
+            - option "By Status"
+      - list "FIR cases" [ref=e27]:
+        - status [ref=e28]:
+          - generic [ref=e30]: Loading FIR history...
+        - status [ref=e31]:
+          - img [ref=e32]
+          - paragraph [ref=e35]: No FIR records found
+        - 'listitem "FIR #2026/008, James Taylor - Vandalism, Status: investigating" [ref=e36] [cursor=pointer]':
+          - generic: "FIR #2026/008"
+          - generic: James Taylor - Vandalism
+          - generic [ref=e37]: Investigating
+        - 'listitem "FIR #2026/025, Emily Davis - Property Damage, Status: pending" [ref=e38] [cursor=pointer]':
+          - generic: "FIR #2026/025"
+          - generic: Emily Davis - Property Damage
+          - generic [ref=e39]: Pending
+        - 'listitem "FIR #2026/024, Robert Brown - Assault Case, Status: pending" [ref=e40] [cursor=pointer]':
+          - generic: "FIR #2026/024"
+          - generic: Robert Brown - Assault Case
+          - generic [ref=e41]: Pending
+        - 'listitem "FIR #2026/004, Robert Brown - Assault Case, Status: closed" [ref=e42] [cursor=pointer]':
+          - generic: "FIR #2026/004"
+          - generic: Robert Brown - Assault Case
+          - generic [ref=e43]: Closed
+        - 'listitem "FIR #2026/013, Sarah Williams - Theft Report, Status: investigating" [ref=e44] [cursor=pointer]':
+          - generic: "FIR #2026/013"
+          - generic: Sarah Williams - Theft Report
+          - generic [ref=e45]: Investigating
+        - 'listitem "FIR #2026/023, Sarah Williams - Theft Report, Status: investigating" [ref=e46] [cursor=pointer]':
+          - generic: "FIR #2026/023"
+          - generic: Sarah Williams - Theft Report
+          - generic [ref=e47]: Investigating
+        - 'listitem "FIR #2026/007, Lisa Anderson - Burglary, Status: investigating" [ref=e48] [cursor=pointer]':
+          - generic: "FIR #2026/007"
+          - generic: Lisa Anderson - Burglary
+          - generic [ref=e49]: Investigating
+        - 'listitem "FIR #2026/011, Jane Smith - Parking Dispute, Status: pending" [ref=e50] [cursor=pointer]':
+          - generic: "FIR #2026/011"
+          - generic: Jane Smith - Parking Dispute
+          - generic [ref=e51]: Pending
+        - 'listitem "FIR #2026/019, Mary Martinez - Missing Person, Status: closed" [ref=e52] [cursor=pointer]':
+          - generic: "FIR #2026/019"
+          - generic: Mary Martinez - Missing Person
+          - generic [ref=e53]: Closed
+        - 'listitem "FIR #2026/021, Jane Smith - Parking Dispute, Status: pending" [ref=e54] [cursor=pointer]':
+          - generic: "FIR #2026/021"
+          - generic: Jane Smith - Parking Dispute
+          - generic [ref=e55]: Pending
+      - navigation "FIR list pagination" [ref=e56]:
+        - button "Previous page" [disabled] [ref=e57]:
+          - img [ref=e58]
+        - generic [ref=e60]: Page 1 of 3
+        - button "Next page" [ref=e61] [cursor=pointer]:
+          - img [ref=e62]
+    - main [ref=e64]:
+      - generic [ref=e66]:
+        - heading "AFIRGen" [level=1] [ref=e67]
+        - generic [ref=e68]:
+          - generic [ref=e69]:
+            - heading "Step 1" [level=3] [ref=e70]
+            - paragraph [ref=e71]: Upload your complaint letter or document. Our AI will analyze the content and extract relevant information for FIR generation.
+          - generic [ref=e72]:
+            - heading "Step 2" [level=3] [ref=e73]
+            - paragraph [ref=e74]: Optionally upload audio recordings of witness statements to enhance the FIR details.
+          - generic [ref=e75]:
+            - heading "Step 3" [level=3] [ref=e76]
+            - paragraph [ref=e77]: Review the auto-generated FIR content, make necessary edits, and submit for official processing.
+        - generic [ref=e78]:
+          - group "File upload controls" [ref=e79]:
+            - generic "Upload complaint letter or document" [ref=e80] [cursor=pointer]:
+              - img [ref=e81]
+              - generic [ref=e84]: replace_letter2.jpg
+              - generic [ref=e85]: or drag and drop here
+            - generic "Upload audio recording of witness statement":
+              - img
+              - generic: Upload Audio
+              - generic: or drag and drop here
+          - button "Generate FIR from uploaded files" [ref=e86] [cursor=pointer]:
+            - img [ref=e87]
+        - status [ref=e89]: Ready to generate FIR
+  - generic:
+    - alert [ref=e90]:
+      - img [ref=e92]
+      - generic [ref=e95]: A new version is available. Refresh to update.
+      - generic "Close notification" [ref=e96] [cursor=pointer]:
+        - img [ref=e97]
+    - alert [ref=e100]:
+      - img [ref=e102]
+      - generic [ref=e106]: "Letter file uploaded: replace_letter1.jpg"
+      - generic "Close notification" [ref=e107] [cursor=pointer]:
+        - img [ref=e108]
+    - alert [ref=e111]:
+      - img [ref=e113]
+      - generic [ref=e117]: "Audio file uploaded: replace_audio.wav"
+      - generic "Close notification" [ref=e118] [cursor=pointer]:
+        - img [ref=e119]
+    - alert [ref=e122]:
+      - img [ref=e124]
+      - generic [ref=e128]: "Letter file uploaded: replace_letter2.jpg"
+      - generic "Close notification" [ref=e129] [cursor=pointer]:
+        - img [ref=e130]
+  - status [ref=e133]: "Success: Letter file uploaded: replace_letter2.jpg"
+  - alert [ref=e134]
+```

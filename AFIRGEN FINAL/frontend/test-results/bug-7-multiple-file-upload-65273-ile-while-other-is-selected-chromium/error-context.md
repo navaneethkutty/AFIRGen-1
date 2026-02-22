@@ -1,0 +1,136 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - navigation "Main navigation" [ref=e3]:
+    - heading "AFIRGen" [level=1] [ref=e4]
+    - menubar [ref=e5]:
+      - menuitem "Navigate to Team page" [ref=e6] [cursor=pointer]: Team
+      - menuitem "Navigate to About page" [ref=e7] [cursor=pointer]: About
+      - menuitem "Navigate to Home page" [ref=e8] [cursor=pointer]: Home
+  - generic [ref=e9]:
+    - complementary "FIR list and location information" [ref=e10]:
+      - region "Current location and time" [ref=e11]:
+        - generic [ref=e12]:
+          - img [ref=e13]
+          - 'generic "Current location: Moggapair West (V7)" [ref=e16]': Moggapair West (V7)
+        - generic [ref=e17]:
+          - img [ref=e18]
+          - generic "Current time" [ref=e21]: Feb 22, 2026, 02:21 PM
+      - group "FIR history search and filter controls" [ref=e22]:
+        - generic [ref=e23]:
+          - generic [ref=e24]: Search FIR history
+          - textbox "Search FIR by number, complainant, or date" [ref=e25]:
+            - /placeholder: Search FIR...
+          - img
+        - generic [ref=e26]:
+          - generic [ref=e27]: Filter by status
+          - combobox "Filter FIR by status" [ref=e28] [cursor=pointer]:
+            - option "All Status" [selected]
+            - option "Pending"
+            - option "Investigating"
+            - option "Closed"
+          - generic [ref=e29]: Sort FIR list
+          - combobox "Sort FIR list" [ref=e30] [cursor=pointer]:
+            - option "Newest First" [selected]
+            - option "Oldest First"
+            - option "By Status"
+      - list "FIR cases" [ref=e31]:
+        - status [ref=e32]:
+          - generic [ref=e34]: Loading FIR history...
+        - status [ref=e35]:
+          - img [ref=e36]
+          - paragraph [ref=e39]: No FIR records found
+        - 'listitem "FIR #2026/016, David Wilson - Harassment, Status: pending" [ref=e40] [cursor=pointer]':
+          - generic [ref=e41]: "FIR #2026/016"
+          - generic [ref=e42]: David Wilson - Harassment
+          - generic [ref=e43]: Pending
+        - 'listitem "FIR #2026/008, James Taylor - Vandalism, Status: investigating" [ref=e44] [cursor=pointer]':
+          - generic [ref=e45]: "FIR #2026/008"
+          - generic [ref=e46]: James Taylor - Vandalism
+          - generic [ref=e47]: Investigating
+        - 'listitem "FIR #2026/002, Michael Johnson - Fraud Case, Status: investigating" [ref=e48] [cursor=pointer]':
+          - generic [ref=e49]: "FIR #2026/002"
+          - generic [ref=e50]: Michael Johnson - Fraud Case
+          - generic [ref=e51]: Investigating
+        - 'listitem "FIR #2026/010, John Doe - Downtown Market, Status: investigating" [ref=e52] [cursor=pointer]':
+          - generic [ref=e53]: "FIR #2026/010"
+          - generic [ref=e54]: John Doe - Downtown Market
+          - generic [ref=e55]: Investigating
+        - 'listitem "FIR #2026/017, Lisa Anderson - Burglary, Status: investigating" [ref=e56] [cursor=pointer]':
+          - generic [ref=e57]: "FIR #2026/017"
+          - generic [ref=e58]: Lisa Anderson - Burglary
+          - generic [ref=e59]: Investigating
+        - 'listitem "FIR #2026/011, Jane Smith - Parking Dispute, Status: investigating" [ref=e60] [cursor=pointer]':
+          - generic [ref=e61]: "FIR #2026/011"
+          - generic [ref=e62]: Jane Smith - Parking Dispute
+          - generic [ref=e63]: Investigating
+        - 'listitem "FIR #2026/012, Michael Johnson - Fraud Case, Status: closed" [ref=e64] [cursor=pointer]':
+          - generic [ref=e65]: "FIR #2026/012"
+          - generic [ref=e66]: Michael Johnson - Fraud Case
+          - generic [ref=e67]: Closed
+        - 'listitem "FIR #2026/003, Sarah Williams - Theft Report, Status: investigating" [ref=e68] [cursor=pointer]':
+          - generic [ref=e69]: "FIR #2026/003"
+          - generic [ref=e70]: Sarah Williams - Theft Report
+          - generic [ref=e71]: Investigating
+        - 'listitem "FIR #2026/009, Mary Martinez - Missing Person, Status: pending" [ref=e72] [cursor=pointer]':
+          - generic [ref=e73]: "FIR #2026/009"
+          - generic [ref=e74]: Mary Martinez - Missing Person
+          - generic [ref=e75]: Pending
+        - 'listitem "FIR #2026/021, Jane Smith - Parking Dispute, Status: pending" [ref=e76] [cursor=pointer]':
+          - generic [ref=e77]: "FIR #2026/021"
+          - generic [ref=e78]: Jane Smith - Parking Dispute
+          - generic [ref=e79]: Pending
+      - navigation "FIR list pagination" [ref=e80]:
+        - button "Previous page" [disabled] [ref=e81]:
+          - img [ref=e82]
+        - generic [ref=e84]: Page 1 of 3
+        - button "Next page" [ref=e85] [cursor=pointer]:
+          - img [ref=e86]
+    - main [ref=e88]:
+      - generic [ref=e90]:
+        - heading "AFIRGen" [level=1] [ref=e91]
+        - generic [ref=e92]:
+          - generic [ref=e93]:
+            - heading "Step 1" [level=3] [ref=e94]
+            - paragraph [ref=e95]: Upload your complaint letter or document. Our AI will analyze the content and extract relevant information for FIR generation.
+          - generic [ref=e96]:
+            - heading "Step 2" [level=3] [ref=e97]
+            - paragraph [ref=e98]: Optionally upload audio recordings of witness statements to enhance the FIR details.
+          - generic [ref=e99]:
+            - heading "Step 3" [level=3] [ref=e100]
+            - paragraph [ref=e101]: Review the auto-generated FIR content, make necessary edits, and submit for official processing.
+        - generic [ref=e102]:
+          - group "File upload controls" [ref=e103]:
+            - generic "Upload complaint letter or document" [ref=e104] [cursor=pointer]:
+              - img [ref=e105]
+              - generic [ref=e108]: replace_letter2.jpg
+              - generic [ref=e109]: or drag and drop here
+            - generic "Upload audio recording of witness statement":
+              - img
+              - generic: Upload Audio
+              - generic: or drag and drop here
+          - button "Generate FIR from uploaded files" [ref=e110] [cursor=pointer]:
+            - img [ref=e111]
+        - status [ref=e113]: Ready to generate FIR
+  - generic:
+    - alert [ref=e114]:
+      - img [ref=e116]
+      - generic [ref=e120]: "Letter file uploaded: replace_letter1.jpg"
+      - generic "Close notification" [ref=e121] [cursor=pointer]:
+        - img [ref=e122]
+    - alert [ref=e125]:
+      - img [ref=e127]
+      - generic [ref=e131]: "Audio file uploaded: replace_audio.wav"
+      - generic "Close notification" [ref=e132] [cursor=pointer]:
+        - img [ref=e133]
+    - alert [ref=e136]:
+      - img [ref=e138]
+      - generic [ref=e142]: "Letter file uploaded: replace_letter2.jpg"
+      - generic "Close notification" [ref=e143] [cursor=pointer]:
+        - img [ref=e144]
+  - status [ref=e147]: "Success: Letter file uploaded: replace_letter2.jpg"
+  - alert [ref=e148]
+```
