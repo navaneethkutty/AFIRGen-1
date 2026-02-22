@@ -30,7 +30,7 @@ global.window = {
 describe('File Validation', () => {
   describe('validateFileType()', () => {
     // Mock validateFileType function
-    const validateFileType = (file, allowedTypes = ['.jpg', '.jpeg', '.png', '.pdf', '.wav', '.mp3']) => {
+    const validateFileType = (file, allowedTypes = ['.jpg', '.jpeg', '.png', '.wav', '.mp3']) => {
       if (!file) {
         return { success: false, error: 'No file provided' };
       }

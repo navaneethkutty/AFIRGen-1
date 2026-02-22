@@ -34,6 +34,57 @@ This Terraform configuration deploys the AFIRGen system using only AWS Free Tier
 - **Public Route Table**: Routes 0.0.0.0/0 to Internet Gateway
 - **Private Route Table**: No internet route (RDS doesn't need internet access)
 
+### Security Groups (Task 1.2)
+
+**EC2 Security Group:**
+- Ingress: HTTP (80), HTTPS (443) from anywhere
+- Ingress: SSH (22) from admin IP only
+- Egress: All traffic allowed
+
+**RDS Security Group:**
+- Ingress: MySQL (3306) from EC2 security group only
+- Egress: All traffic allowed
+
+### S3 Buckets (Task 1.3)
+
+**Frontend Bucket** (`afirgen-frontend-{account-id}`):
+- Purpose: Static website hosting
+- Features: Versioning, SSE-S3 encryption, lifecycle policy (delete old versions after 7 days)
+
+**Models Bucket** (`afirgen-models-{account-id}`):
+- Purpose: ML model storage (~5GB)
+- Features: Versioning, SSE-S3 encryption
+
+**Temp Bucket** (`afirgen-temp-{account-id}`):
+- Purpose: Temporary file uploads
+- Features: SSE-S3 encryption, lifecycle policy (delete after 1 day)
+
+**Backups Bucket** (`afirgen-backups-{account-id}`):
+- Purpose: Database backups
+- Features: Versioning, SSE-S3 encryption, lifecycle policy (Glacier after 30 days, delete after 90 days)
+
+### EC2 Instance (Task 1.5)
+
+**Instance Configuration:**
+- Type: t2.micro (1 vCPU, 1GB RAM)
+- Storage: 30GB gp3 EBS (encrypted)
+- Network: Public subnet with Elastic IP
+- Monitoring: CloudWatch detailed monitoring enabled
+
+**Automated Setup (User Data Script):**
+- Docker and Docker Compose installation
+- CloudWatch agent configuration
+- ML model download from S3
+- Environment configuration
+- Monitoring scripts setup
+- Cron jobs for automated tasks
+
+**IAM Permissions:**
+- S3: Read/Write access to models, temp, and backups buckets
+- CloudWatch: Send metrics and logs
+
+See [EC2-SETUP-GUIDE.md](./EC2-SETUP-GUIDE.md) for detailed EC2 configuration.
+
 ### Cost Optimization Strategy
 
 This configuration implements several cost-saving measures:
@@ -76,6 +127,11 @@ Expected resources to be created:
 - 2 Route Tables
 - 3 Route Table Associations
 - 1 S3 Gateway VPC Endpoint
+- 2 Security Groups (EC2, RDS)
+- 4 S3 Buckets (frontend, models, temp, backups)
+- 1 EC2 t2.micro instance
+- 1 Elastic IP
+- IAM role and policies for EC2
 
 ### Step 3: Apply the Configuration
 
@@ -97,6 +153,26 @@ terraform output private_subnet_ids
 
 # Get S3 endpoint ID
 terraform output s3_endpoint_id
+
+# Get EC2 instance details
+terraform output ec2_public_ip
+terraform output ec2_instance_id
+
+# Get S3 bucket names
+terraform output s3_bucket_names
+```
+
+### Step 5: Access EC2 Instance
+
+```bash
+# SSH to the instance (replace with your key and IP)
+ssh -i your-key.pem ubuntu@$(terraform output -raw ec2_public_ip)
+
+# Check user data script progress
+tail -f /var/log/user-data.log
+
+# Verify setup completed
+ls -la /opt/afirgen/setup_complete.flag
 ```
 
 ## Outputs

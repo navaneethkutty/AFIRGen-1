@@ -309,15 +309,12 @@ async function processFiles(letterFile, audioFile, onProgress) {
   const formData = new FormData();
 
   if (letterFile) {
-    if (letterFile.type.startsWith('image/')) {
-      formData.append('image', letterFile);
-    } else {
-      // Note: After Bug 8 fix, only image files (.jpg, .jpeg, .png) are accepted for letter files
-      // This code path is kept for backward compatibility but should not be reached
-      // If text files were supported, we would use letterFile.text() here
-      const text = await letterFile.text();
-      formData.append('text', text);
+    // Only image files are accepted for letter upload (aligns with backend validation)
+    // Backend only accepts: image/jpeg, image/png, image/jpg
+    if (!letterFile.type.startsWith('image/')) {
+      throw new Error(`Invalid file type for letter: ${letterFile.type}. Only image files (.jpg, .jpeg, .png) are accepted.`);
     }
+    formData.append('image', letterFile);
   }
 
   if (audioFile) {

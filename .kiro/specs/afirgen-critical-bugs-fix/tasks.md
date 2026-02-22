@@ -1,595 +1,318 @@
 # Implementation Plan
 
-## Phase 1: Bug Condition Exploration Tests (BEFORE Fix)
+## CRITICAL UPDATE: Code Review Findings
 
-### Critical Bugs
+After comprehensive code review of the entire AFIRGEN codebase (backend + frontend), the following status was determined:
 
-- [x] 1. Write bug condition exploration test for Critical Bug 1 - IndentationError
-  - **Property 1: Fault Condition** - Backend Import Failure
-  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
-  - **DO NOT attempt to fix the test or the code when it fails**
-  - **NOTE**: This test encodes the expected behavior - it will validate the fix when it passes after implementation
-  - **GOAL**: Surface counterexamples that demonstrate the bug exists
-  - Test that importing agentv5.py module succeeds without IndentationError
-  - Verify RequestTrackingMiddleware class has a properly defined body
-  - Run test on UNFIXED code
-  - **EXPECTED OUTCOME**: Test FAILS with IndentationError at line 1646 (this is correct - it proves the bug exists)
-  - Document the exact IndentationError message and line number
-  - _Requirements: 1.1, 2.1_
+### ALREADY FIXED (No Action Required):
+- Bug 1.1: RequestTrackingMiddleware has proper implementation with dispatch method ✓
+- Bug 1.2: get_fir_data() signature is correct (2 params) and called correctly ✓
+- Bug 1.3: No middleware duplication found ✓
+- Bug 1.4: Regenerate endpoint correctly accepts JSON body via RegenerateRequest model ✓
+- Bug 1.5: Session status DOES include validation_history field ✓
+- Bug 1.6: /fir/{firNumber} endpoint DOES return full fir_content ✓
+- Bug 1.7: Text-only sessions ARE marked AWAITING_VALIDATION correctly ✓
+- Bug 1.11: Shutdown handling uses JSONResponse correctly (no to_response() call) ✓
 
-- [x] 2. Write bug condition exploration test for Critical Bug 2 - get_fir_data Signature Mismatch
-  - **Property 1: Fault Condition** - Function Signature Mismatch
-  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
-  - **DO NOT attempt to fix the test or the code when it fails**
-  - **GOAL**: Surface counterexamples that demonstrate the bug exists
-  - Test that get_fir_data() can be called with two arguments (state_dict, fir_number)
-  - Simulate FIR generation reaching FINAL_REVIEW step at line 1866
-  - Run test on UNFIXED code
-  - **EXPECTED OUTCOME**: Test FAILS with TypeError about argument count (this is correct - it proves the bug exists)
-  - Document the exact TypeError message
-  - _Requirements: 1.2, 2.2_
+### REAL BUGS CONFIRMED (Require Fixes):
+- Bug 1.8: Backend rejects multiple file uploads (input_count > 1 validation exists)
+- Bug 1.9: Frontend validation.js allows .pdf files but backend only accepts images (.jpg, .jpeg, .png)
+- Bug 1.10: Frontend api.js reads non-image files via File.text() causing corruption
 
+### NEW BUGS DISCOVERED:
+- Bug 2.1: Frontend app.js allows both letter AND audio files to be selected simultaneously, then shows error
+- Bug 2.2: Frontend validation.js default allowedTypes includes .pdf but backend rejects it
+- Bug 2.3: Frontend has inconsistent file type validation across modules
 
-### High Priority Bugs
+## Phase 1: Bug Condition Exploration Tests
 
-- [x] 3. Write bug condition exploration test for High Priority Bug 3 - Text-only Validation Flow
-  - **Property 1: Fault Condition** - Text-only Session Status Not Set
-  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
-  - **DO NOT attempt to fix the test or the code when it fails**
-  - **GOAL**: Surface counterexamples that demonstrate the bug exists
-  - Test that POST /process with text-only input sets session status to AWAITING_VALIDATION
-  - Verify session.status == SessionStatus.AWAITING_VALIDATION after text-only processing
-  - Run test on UNFIXED code
-  - **EXPECTED OUTCOME**: Test FAILS because status is not set to AWAITING_VALIDATION (this is correct - it proves the bug exists)
-  - Document the actual status value returned
-  - _Requirements: 1.3, 2.3_
+- [x] 1. Write bug condition exploration tests for REAL bugs only
+  - **Property 1: Fault Condition** - Confirmed Bugs Exist
+  - **CRITICAL**: These tests MUST FAIL on unfixed code - failure confirms the bugs exist
+  - **DO NOT attempt to fix the tests or the code when they fail**
+  - **NOTE**: Skip tests for already-fixed bugs (1.1-1.7, 1.11)
+  - **GOAL**: Surface counterexamples that demonstrate each REAL bug exists
+  - Write property-based tests for confirmed bugs:
+    - Bug 1.8: Multiple file upload rejection
+    - Bug 1.9: File type validation mismatch (.pdf allowed in frontend, rejected by backend)
+    - Bug 1.10: Non-image file read corruption via File.text()
+    - Bug 2.1: Frontend UI allows both files then shows error
+    - Bug 2.2: Inconsistent file type validation
+  - Run tests on UNFIXED code
+  - **EXPECTED OUTCOME**: Tests FAIL (this is correct - it proves the bugs exist)
+  - Document counterexamples found to understand root causes
+  - Mark task complete when tests are written, run, and failures are documented
+  - _Requirements: 1.8, 1.9, 1.10, 2.8, 2.9, 2.10_
 
-- [x] 4. Write bug condition exploration test for High Priority Bug 4 - Validation Endpoint Rejection
-  - **Property 1: Fault Condition** - Validation Endpoint Rejects Text-only Sessions
-  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
-  - **DO NOT attempt to fix the test or the code when it fails**
-  - **GOAL**: Surface counterexamples that demonstrate the bug exists
-  - Test that POST /validate succeeds after text-only session creation
-  - Create text-only session via /process, then call /validate
-  - Run test on UNFIXED code
-  - **EXPECTED OUTCOME**: Test FAILS with 400 error "Session not awaiting validation" (this is correct - it proves the bug exists)
-  - Document the exact error response
-  - _Requirements: 1.4, 2.4_
+  - [x] 1.1 Test Bug 1.8 - Multiple file upload rejection
+    - **Property 1: Fault Condition** - Multiple Input Rejection
+    - POST with both audio and image files simultaneously
+    - Verify backend rejects with 400 error "Please provide only one input type"
+    - Document the validation logic at agentv5.py lines 1717-1720
+    - _Requirements: 1.8_
 
-- [x] 5. Write bug condition exploration test for High Priority Bug 5 - Regenerate Endpoint Mismatch
-  - **Property 1: Fault Condition** - Regenerate Parameter Passing Mismatch
-  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
-  - **DO NOT attempt to fix the test or the code when it fails**
-  - **GOAL**: Surface counterexamples that demonstrate the bug exists
-  - Test that POST /regenerate with JSON body {step, user_input} succeeds
-  - Send request matching frontend format (JSON body, not query params)
-  - Run test on UNFIXED code
-  - **EXPECTED OUTCOME**: Test FAILS with 422 Unprocessable Entity or parameter binding error (this is correct - it proves the bug exists)
-  - Document the exact error response
-  - _Requirements: 1.5, 2.5_
+  - [x] 1.2 Test Bug 1.9 - File type validation mismatch
+    - **Property 1: Fault Condition** - File Type Rejection
+    - Verify frontend validation.js line 83 allows .pdf in default allowedTypes
+    - Verify backend input_validation.py only allows image/jpeg, image/png, image/jpg
+    - Attempt to upload .pdf file through frontend
+    - Verify backend rejects with 415 error
+    - Document the mismatch between frontend and backend validation
+    - _Requirements: 1.9_
 
-- [x] 6. Write bug condition exploration test for High Priority Bug 6 - Session Polling Missing Fields
-  - **Property 1: Fault Condition** - Status Response Missing validation_history
-  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
-  - **DO NOT attempt to fix the test or the code when it fails**
-  - **GOAL**: Surface counterexamples that demonstrate the bug exists
-  - Test that GET /session/{id}/status returns validation_history with content.fir_number
-  - Create session, complete validation step, poll status
-  - Verify response includes validation_history[-1].content.fir_number
-  - Run test on UNFIXED code
-  - **EXPECTED OUTCOME**: Test FAILS because validation_history field is missing (this is correct - it proves the bug exists)
-  - Document the actual response structure
-  - _Requirements: 1.6, 2.6_
+  - [x] 1.3 Test Bug 1.10 - Non-image file read corruption
+    - **Property 1: Fault Condition** - File Content Corruption
+    - Upload .pdf or .doc file as letter (if frontend allows)
+    - Verify frontend reads via File.text() at api.js line 320
+    - Verify backend receives corrupted payload
+    - Document the corruption pattern
+    - _Requirements: 1.10_
 
-- [x] 7. Write bug condition exploration test for High Priority Bug 7 - Multiple File Upload Allowed
-  - **Property 1: Fault Condition** - Frontend Allows Multiple File Selection
-  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
-  - **DO NOT attempt to fix the test or the code when it fails**
-  - **GOAL**: Surface counterexamples that demonstrate the bug exists
-  - Test that frontend prevents submission when both letter and audio files are selected
-  - Simulate selecting both file types in UI
-  - Verify generate button is disabled or validation error is shown
-  - Run test on UNFIXED code
-  - **EXPECTED OUTCOME**: Test FAILS because frontend allows submission (this is correct - it proves the bug exists)
-  - Document the actual frontend behavior
-  - _Requirements: 1.7, 2.7_
+  - [x] 1.4 Test Bug 2.1 - Frontend allows both files then shows error
+    - **Property 1: Fault Condition** - Poor UX
+    - Select both letter file and audio file in frontend
+    - Verify frontend allows selection but then disables generate button
+    - Verify error message shown: "Error: Please select only one input type"
+    - Document that frontend should prevent selection, not show error after
+    - _Requirements: 2.8_
 
-- [x] 8. Write bug condition exploration test for High Priority Bug 8 - File Type Mismatch
-  - **Property 1: Fault Condition** - Frontend/Backend File Type Mismatch
-  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
-  - **DO NOT attempt to fix the test or the code when it fails**
-  - **GOAL**: Surface counterexamples that demonstrate the bug exists
-  - Test that only mutually supported file types (.jpg, .jpeg, .png, .wav, .mp3) are accepted
-  - Attempt to upload .pdf, .txt, .doc, .docx, .m4a, .ogg files
-  - Verify frontend rejects these types before submission
-  - Run test on UNFIXED code
-  - **EXPECTED OUTCOME**: Test FAILS because frontend accepts unsupported types (this is correct - it proves the bug exists)
-  - Document which unsupported types are accepted by frontend
-  - _Requirements: 1.8, 2.8_
+  - [x] 1.5 Test Bug 2.2 - Inconsistent file type validation across frontend modules
+    - **Property 1: Fault Condition** - Validation Inconsistency
+    - Check validation.js default allowedTypes: ['.jpg', '.jpeg', '.png', '.pdf', '.wav', '.mp3']
+    - Check app.js letter upload validation (if any)
+    - Check app.js audio upload validation (if any)
+    - Verify inconsistencies between modules
+    - Document which module allows which file types
+    - _Requirements: 2.9_
 
+## Phase 2: Preservation Property Tests
 
-### Medium Priority Bugs
-
-- [x] 9. Write bug condition exploration test for Medium Priority Bug 9 - FIR Retrieval Endpoint Mismatch
-  - **Property 1: Fault Condition** - FIR Endpoint Returns Metadata Only
-  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
-  - **DO NOT attempt to fix the test or the code when it fails**
-  - **GOAL**: Surface counterexamples that demonstrate the bug exists
-  - Test that GET /fir/{firNumber} returns full FIR content including fir_content field
-  - Create completed FIR, retrieve via /fir/{firNumber}
-  - Verify response includes full content, not just metadata
-  - Run test on UNFIXED code
-  - **EXPECTED OUTCOME**: Test FAILS because response only contains metadata (this is correct - it proves the bug exists)
-  - Document the actual response structure
-  - _Requirements: 1.9, 2.9_
-
-- [x] 10. Write bug condition exploration test for Medium Priority Bug 10 - Shutdown Handling Crash
-  - **Property 1: Fault Condition** - Shutdown Error Response Crashes
-  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
-  - **DO NOT attempt to fix the test or the code when it fails**
-  - **GOAL**: Surface counterexamples that demonstrate the bug exists
-  - Test that RuntimeError with "shutting down" message returns proper 503 response
-  - Trigger shutdown scenario in RequestTrackingMiddleware
-  - Verify 503 JSONResponse is returned without crash
-  - Run test on UNFIXED code
-  - **EXPECTED OUTCOME**: Test FAILS with AttributeError on to_response() method (this is correct - it proves the bug exists)
-  - Document the exact error message
-  - _Requirements: 1.10, 2.10_
-
-- [x] 11. Write bug condition exploration test for Medium Priority Bug 11 - Binary File Corruption
-  - **Property 1: Fault Condition** - Binary Files Read as Text
-  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
-  - **DO NOT attempt to fix the test or the code when it fails**
-  - **GOAL**: Surface counterexamples that demonstrate the bug exists
-  - Test that PDF/DOC files are read correctly without corruption
-  - Upload binary file, verify data integrity
-  - Check that File.arrayBuffer() or similar is used, not File.text()
-  - Run test on UNFIXED code
-  - **EXPECTED OUTCOME**: Test FAILS because binary data is corrupted (this is correct - it proves the bug exists)
-  - Document the corruption observed
-  - _Requirements: 1.11, 2.11_
-
-
-## Phase 2: Preservation Property Tests (BEFORE Fix)
-
-- [x] 12. Write preservation property tests (BEFORE implementing fixes)
-  - **Property 2: Preservation** - Non-Buggy Input Behavior Unchanged
+- [x] 2. Write preservation property tests (BEFORE implementing fixes)
+  - **Property 2: Preservation** - Existing Functionality Unchanged
   - **IMPORTANT**: Follow observation-first methodology
-  - Observe behavior on UNFIXED code for non-buggy inputs (cases where isBugCondition returns false)
+  - Observe behavior on UNFIXED code for non-buggy inputs
   - Write property-based tests capturing observed behavior patterns from Preservation Requirements
   - Property-based testing generates many test cases for stronger guarantees
   - Run tests on UNFIXED code
   - **EXPECTED OUTCOME**: Tests PASS (this confirms baseline behavior to preserve)
   - Mark task complete when tests are written, run, and passing on unfixed code
-  
-  - [x] 12.1 Audio file processing preservation test
-    - Test that valid .wav/.mp3 audio files continue to process correctly
-    - Generate random valid audio files and verify processing succeeds
-    - Verify processing pipeline, session creation, and status updates work as before
-    - _Requirements: 3.1, 3.5_
-  
-  - [x] 12.2 Image file processing preservation test
-    - Test that valid .jpg/.png image files continue to process correctly
-    - Generate random valid image files and verify processing succeeds
-    - Verify processing pipeline, session creation, and status updates work as before
-    - _Requirements: 3.1, 3.4_
-  
-  - [x] 12.3 Audio/image validation flow preservation test
-    - Test that validation workflow for audio/image inputs continues to work
-    - Complete full validation workflow from AWAITING_VALIDATION to COMPLETED
-    - Verify all validation steps (TRANSCRIPT_REVIEW, SUMMARY_REVIEW, etc.) work as before
-    - _Requirements: 3.2, 3.12_
-  
-  - [x] 12.4 Authentication preservation test
-    - Test that APIAuthMiddleware continues to enforce authentication
-    - Generate random API requests with valid/invalid keys
-    - Verify authentication behavior is unchanged
-    - _Requirements: 3.7_
-  
-  - [x] 12.5 Health check preservation test
-    - Test that /health endpoint continues to work without authentication
-    - Verify health status response format is unchanged
-    - _Requirements: 3.8_
-  
-  - [x] 12.6 Session status endpoint preservation test
-    - Test that /status endpoint continues to return existing fields
-    - Verify session_id, status, current_step, awaiting_validation, created_at, last_activity fields
-    - Ensure new validation_history field doesn't break existing consumers
-    - _Requirements: 3.3_
-  
-  - [x] 12.7 FIR generation quality preservation test
-    - Test that FIR content generation quality and format remain unchanged
-    - Generate random FIR data and verify output structure
-    - Verify all FIR fields are populated correctly
-    - _Requirements: 3.6_
-  
-  - [x] 12.8 Graceful shutdown preservation test
-    - Test that graceful shutdown continues to track active requests
-    - Verify shutdown waits for request completion
-    - _Requirements: 3.9_
-  
-  - [x] 12.9 FIR retrieval preservation test
-    - Test that FIR retrieval endpoints continue to return correct data
-    - Verify /fir/{fir_number}/content endpoint still works
-    - _Requirements: 3.10_
-  
-  - [x] 12.10 Frontend progress display preservation test
-    - Test that frontend continues to show step-by-step progress updates
-    - Verify progress indicators and status messages work as before
-    - _Requirements: 3.11_
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10_
 
+  - [x] 2.1 Test valid image file uploads preservation
+    - **Property 2: Preservation** - Valid Image Processing
+    - Observe: Upload .jpg, .jpeg, .png files on unfixed code
+    - Write property: For all valid image files, processing succeeds
+    - Verify test passes on UNFIXED code
+    - _Requirements: 3.1_
+
+  - [x] 2.2 Test single file upload preservation
+    - **Property 2: Preservation** - Single Input Processing
+    - Observe: Upload single file (one input type) on unfixed code
+    - Write property: For all single input submissions, processing succeeds
+    - Verify test passes on UNFIXED code
+    - _Requirements: 3.2_
+
+  - [x] 2.3 Test valid audio file uploads preservation
+    - **Property 2: Preservation** - Valid Audio Processing
+    - Observe: Upload .wav, .mp3 files on unfixed code
+    - Write property: For all valid audio files, processing succeeds
+    - Verify test passes on UNFIXED code
+    - _Requirements: 3.3_
+
+  - [x] 2.4 Test FIR generation and storage preservation
+    - **Property 2: Preservation** - FIR Workflow
+    - Observe: Complete FIR generation workflow on unfixed code
+    - Write property: For all valid inputs, FIR generation and retrieval work correctly
+    - Verify test passes on UNFIXED code
+    - _Requirements: 3.4_
+
+  - [x] 2.5 Test session status polling preservation
+    - **Property 2: Preservation** - Session Status Complete Data
+    - Observe: Poll session status for sessions with all expected fields on unfixed code
+    - Write property: For all properly structured sessions, status returns complete information
+    - Verify test passes on UNFIXED code
+    - _Requirements: 3.5_
+
+  - [x] 2.6 Test authentication middleware preservation
+    - **Property 2: Preservation** - API Authentication
+    - Observe: Make authenticated requests on unfixed code
+    - Write property: For all valid API keys, authentication succeeds
+    - Verify test passes on UNFIXED code
+    - _Requirements: 3.6_
+
+  - [x] 2.7 Test validation workflow preservation
+    - **Property 2: Preservation** - Validation Processing
+    - Observe: Trigger validation for properly marked sessions on unfixed code
+    - Write property: For all AWAITING_VALIDATION sessions, validation requests succeed
+    - Verify test passes on UNFIXED code
+    - _Requirements: 3.7_
+
+  - [x] 2.8 Test error handling preservation
+    - **Property 2: Preservation** - Non-Shutdown Error Handling
+    - Observe: Trigger various non-shutdown errors on unfixed code
+    - Write property: For all non-shutdown errors, system handles gracefully
+    - Verify test passes on UNFIXED code
+    - _Requirements: 3.8_
+
+  - [x] 2.9 Test file type validation preservation
+    - **Property 2: Preservation** - Supported File Types
+    - Observe: Upload currently supported file types on unfixed code
+    - Write property: For all supported types, validation accepts them
+    - Verify test passes on UNFIXED code
+    - _Requirements: 3.9_
+
+  - [x] 2.10 Test correct parameter format preservation
+    - **Property 2: Preservation** - Request Processing
+    - Observe: Send requests with correct parameter formats on unfixed code
+    - Write property: For all correctly formatted requests, processing succeeds
+    - Verify test passes on UNFIXED code
+    - _Requirements: 3.10_
 
 ## Phase 3: Implementation
 
-### Critical Bug Fixes
+### Priority 1: File Upload and Validation Fixes
 
-- [x] 13. Fix Critical Bug 1 - IndentationError in RequestTrackingMiddleware
+- [-] 3. Fix Bug 1.8 - Multiple File Upload Rejection
 
-  - [x] 13.1 Implement the fix
-    - Add proper class body to RequestTrackingMiddleware at line 1646
-    - Ensure dispatch method is properly indented within the class
-    - Verify no empty class body exists
-    - File: `AFIRGEN FINAL/main backend/agentv5.py`
-    - _Bug_Condition: input.type == "IMPORT" AND input.module == "agentv5.py" AND RequestTrackingMiddleware.hasEmptyBody()_
-    - _Expected_Behavior: Backend imports successfully without IndentationError_
-    - _Preservation: All existing middleware functionality, authentication, metrics, and request tracking continue to work_
-    - _Requirements: 1.1, 2.1, 3.7, 3.8, 3.9_
-
-  - [x] 13.2 Verify bug condition exploration test now passes
-    - **Property 1: Expected Behavior** - Backend Import Success
-    - **IMPORTANT**: Re-run the SAME test from task 1 - do NOT write a new test
-    - The test from task 1 encodes the expected behavior
-    - When this test passes, it confirms the expected behavior is satisfied
-    - Run bug condition exploration test from step 1
-    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
-    - _Requirements: 2.1_
-
-  - [x] 13.3 Verify preservation tests still pass
-    - **Property 2: Preservation** - Non-Buggy Input Behavior Unchanged
-    - **IMPORTANT**: Re-run the SAME tests from task 12 - do NOT write new tests
-    - Run preservation property tests from step 12
-    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
-    - Confirm all tests still pass after fix (no regressions)
-
-- [x] 14. Fix Critical Bug 2 - get_fir_data Signature Mismatch
-
-  - [x] 14.1 Implement the fix
-    - Update get_fir_data function signature at line 223
-    - Change from: `def get_fir_data(session_state: dict) -> dict:`
-    - To: `def get_fir_data(session_state: dict, fir_number: str) -> dict:`
-    - Update function body to use fir_number parameter instead of extracting from session_state
-    - File: `AFIRGEN FINAL/main backend/agentv5.py`
-    - _Bug_Condition: input.type == "FUNCTION_CALL" AND input.function == "get_fir_data" AND input.argCount == 2 AND functionDefinition.paramCount == 1_
-    - _Expected_Behavior: get_fir_data executes successfully with two arguments_
-    - _Preservation: All existing FIR generation functionality continues to work_
-    - _Requirements: 1.2, 2.2, 3.6_
-
-  - [x] 14.2 Verify bug condition exploration test now passes
-    - **Property 1: Expected Behavior** - Function Signature Match
-    - **IMPORTANT**: Re-run the SAME test from task 2 - do NOT write a new test
-    - Run bug condition exploration test from step 2
-    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
-    - _Requirements: 2.2_
-
-  - [x] 14.3 Verify preservation tests still pass
-    - **Property 2: Preservation** - Non-Buggy Input Behavior Unchanged
-    - **IMPORTANT**: Re-run the SAME tests from task 12 - do NOT write new tests
-    - Run preservation property tests from step 12
-    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
-
-
-### High Priority Bug Fixes
-
-- [x] 15. Fix High Priority Bug 3 - Text-only Validation Flow
-
-  - [x] 15.1 Implement the fix
-    - Add session status update in /process endpoint after line 1764
-    - After: `state.awaiting_validation = True`
-    - Add: `session_manager.set_session_status(state.session_id, SessionStatus.AWAITING_VALIDATION)`
-    - File: `AFIRGEN FINAL/main backend/agentv5.py`
-    - _Bug_Condition: input.type == "API_REQUEST" AND input.endpoint == "/process" AND input.hasTextOnly AND NOT session.status == AWAITING_VALIDATION_
-    - _Expected_Behavior: Session status set to AWAITING_VALIDATION for text-only input_
-    - _Preservation: Audio/image processing workflows continue to work unchanged_
-    - _Requirements: 1.3, 2.3, 3.1, 3.2_
-
-  - [x] 15.2 Verify bug condition exploration test now passes
-    - **Property 1: Expected Behavior** - Text-only Session Status Set
-    - **IMPORTANT**: Re-run the SAME test from task 3 - do NOT write a new test
-    - Run bug condition exploration test from step 3
-    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
-    - _Requirements: 2.3_
-
-  - [x] 15.3 Verify preservation tests still pass
-    - **Property 2: Preservation** - Non-Buggy Input Behavior Unchanged
-    - **IMPORTANT**: Re-run the SAME tests from task 12 - do NOT write new tests
-    - Run preservation property tests from step 12
-    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
-
-- [x] 16. Fix High Priority Bug 4 - Validation Endpoint Rejection
-
-  - [x] 16.1 Verify fix is complete
-    - This bug is automatically fixed by Bug 3 fix (task 15)
-    - No additional code changes needed
-    - Validation endpoint will now accept text-only sessions because status is correctly set
-    - _Bug_Condition: input.type == "API_REQUEST" AND input.endpoint == "/validate" AND session.createdViaTextOnly AND session.status != AWAITING_VALIDATION_
-    - _Expected_Behavior: Validation endpoint accepts text-only sessions_
-    - _Preservation: Audio/image validation workflows continue to work unchanged_
-    - _Requirements: 1.4, 2.4, 3.2_
-
-  - [x] 16.2 Verify bug condition exploration test now passes
-    - **Property 1: Expected Behavior** - Validation Endpoint Accepts Text-only Sessions
-    - **IMPORTANT**: Re-run the SAME test from task 4 - do NOT write a new test
-    - Run bug condition exploration test from step 4
-    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
-    - _Requirements: 2.4_
-
-  - [x] 16.3 Verify preservation tests still pass
-    - **Property 2: Preservation** - Non-Buggy Input Behavior Unchanged
-    - **IMPORTANT**: Re-run the SAME tests from task 12 - do NOT write new tests
-    - Run preservation property tests from step 12
-    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
-
-- [x] 17. Fix High Priority Bug 5 - Regenerate Endpoint Mismatch
-
-  - [x] 17.1 Implement the fix
-    - Change regenerate endpoint to accept JSON body instead of query parameters
-    - Update function signature at line 1962
-    - Change from: `async def regenerate_step(session_id: str, step: ValidationStep, user_input: Optional[str] = None):`
-    - To: `async def regenerate_step(session_id: str, regenerate_req: RegenerateRequest):`
-    - Extract step and user_input from regenerate_req body
-    - Update route decorator to: `@app.post("/regenerate/{session_id}")`
-    - Define RegenerateRequest Pydantic model if not exists
-    - File: `AFIRGEN FINAL/main backend/agentv5.py`
-    - _Bug_Condition: input.type == "API_REQUEST" AND input.endpoint == "/regenerate" AND frontend.sendsJSONBody AND backend.expectsQueryParams_
-    - _Expected_Behavior: Regenerate endpoint processes JSON body requests_
-    - _Preservation: All existing regeneration functionality continues to work_
-    - _Requirements: 1.5, 2.5_
-
-  - [x] 17.2 Verify bug condition exploration test now passes
-    - **Property 1: Expected Behavior** - Regenerate Accepts JSON Body
-    - **IMPORTANT**: Re-run the SAME test from task 5 - do NOT write a new test
-    - Run bug condition exploration test from step 5
-    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
-    - _Requirements: 2.5_
-
-  - [x] 17.3 Verify preservation tests still pass
-    - **Property 2: Preservation** - Non-Buggy Input Behavior Unchanged
-    - **IMPORTANT**: Re-run the SAME tests from task 12 - do NOT write new tests
-    - Run preservation property tests from step 12
-    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
-
-- [x] 18. Fix High Priority Bug 6 - Session Polling Missing Fields
-
-  - [x] 18.1 Implement the fix
-    - Enhance /status endpoint response at lines 1948-1956
-    - Add validation_history field from session state
-    - Ensure validation_history includes content with fir_number when available
-    - Update response to include: `"validation_history": session["state"].get("validation_history", [])`
-    - File: `AFIRGEN FINAL/main backend/agentv5.py`
-    - _Bug_Condition: input.type == "API_REQUEST" AND input.endpoint == "/session/{id}/status" AND frontend.expects("validation_history[-1].content.fir_number") AND NOT response.includes("validation_history")_
-    - _Expected_Behavior: Status endpoint returns validation_history with fir_number_
-    - _Preservation: All existing status endpoint fields continue to be returned_
-    - _Requirements: 1.6, 2.6, 3.3_
-
-  - [x] 18.2 Verify bug condition exploration test now passes
-    - **Property 1: Expected Behavior** - Status Response Includes validation_history
-    - **IMPORTANT**: Re-run the SAME test from task 6 - do NOT write a new test
-    - Run bug condition exploration test from step 6
-    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
-    - _Requirements: 2.6_
-
-  - [x] 18.3 Verify preservation tests still pass
-    - **Property 2: Preservation** - Non-Buggy Input Behavior Unchanged
-    - **IMPORTANT**: Re-run the SAME tests from task 12 - do NOT write new tests
-    - Run preservation property tests from step 12
-    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
-
-- [x] 19. Fix High Priority Bug 7 - Multiple File Upload Allowed
-
-  - [x] 19.1 Implement the fix
-    - Add client-side validation in updateFilesState function
-    - After file selection, check if both letterFile and audioFile are non-null
-    - If both are selected, disable generate button and show error message
-    - Add: `if (letterFile && audioFile) { generateBtn.disabled = true; showToast("Please select only one input type", "error"); }`
-    - File: `AFIRGEN FINAL/frontend/js/app.js`
-    - _Bug_Condition: input.type == "FILE_UPLOAD" AND input.letterFile != NULL AND input.audioFile != NULL AND frontend.allowsSubmit_
-    - _Expected_Behavior: Frontend prevents submission when both files selected_
-    - _Preservation: Single file uploads continue to work unchanged_
-    - _Requirements: 1.7, 2.7_
-
-  - [x] 19.2 Verify bug condition exploration test now passes
-    - **Property 1: Expected Behavior** - Frontend Prevents Multiple File Selection
-    - **IMPORTANT**: Re-run the SAME test from task 7 - do NOT write a new test
-    - Run bug condition exploration test from step 7
-    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
-    - _Requirements: 2.7_
-
-  - [x] 19.3 Verify preservation tests still pass
-    - **Property 2: Preservation** - Non-Buggy Input Behavior Unchanged
-    - **IMPORTANT**: Re-run the SAME tests from task 12 - do NOT write new tests
-    - Run preservation property tests from step 12
-    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
-
-- [x] 20. Fix High Priority Bug 8 - File Type Mismatch
-
-  - [x] 20.1 Implement backend fix
-    - Remove unsupported file types from ValidationConstants
-    - Keep only: {".jpg", ".jpeg", ".png", ".wav", ".mp3", ".mpeg"}
-    - Update ALLOWED_IMAGE_TYPES to: {".jpg", ".jpeg", ".png"}
-    - Update ALLOWED_AUDIO_TYPES to: {".wav", ".mp3", ".mpeg"}
-    - File: `AFIRGEN FINAL/main backend/infrastructure/input_validation.py`
-    - _Bug_Condition: input.type == "FILE_UPLOAD" AND input.fileType IN [".pdf", ".txt", ".doc", ".docx", ".m4a", ".ogg"] AND frontend.accepts AND NOT backend.accepts_
-    - _Expected_Behavior: Only mutually supported file types accepted_
-    - _Preservation: Existing supported file types (.jpg, .png, .wav, .mp3) continue to work_
-    - _Requirements: 1.8, 2.8, 3.4, 3.5_
-
-  - [x] 20.2 Implement frontend fix
-    - Remove unsupported file types from frontend validation
-    - Line 399: Change allowedTypes to: `['.jpg', '.jpeg', '.png']`
-    - Line 437: Change allowedTypes to: `['.mp3', '.wav']`
-    - File: `AFIRGEN FINAL/frontend/js/app.js`
+  - [x] 3.1 Decision: Allow or prevent multiple file uploads
+    - **Option A**: Remove backend validation to allow multiple inputs (enables richer FIR generation)
+    - **Option B**: Improve frontend UX to prevent multiple file selection before submission
+    - **Recommendation**: Option B - Keep single-input restriction for simplicity, fix frontend UX
+    - Document decision and rationale
+    - _Bug_Condition: input.type == "FILE_UPLOAD" AND input.fileCount > 1_
+    - _Expected_Behavior: Frontend prevents multiple file selection OR backend accepts multiple files_
+    - _Preservation: Single file uploads continue to work correctly_
     - _Requirements: 1.8, 2.8_
 
-  - [x] 20.3 Verify bug condition exploration test now passes
-    - **Property 1: Expected Behavior** - Only Supported File Types Accepted
-    - **IMPORTANT**: Re-run the SAME test from task 8 - do NOT write a new test
-    - Run bug condition exploration test from step 8
+  - [x] 3.2 Implement chosen solution for Bug 1.8
+    - If Option A: Remove lines 1718-1720 in agentv5.py (input_count validation)
+    - If Option B: Update app.js to disable file inputs when one is selected
+    - Test multiple file upload scenario
+    - _Requirements: 1.8, 2.8_
+
+  - [x] 3.3 Verify Bug 1.8 exploration test now passes
+    - **Property 1: Expected Behavior** - Multiple Files Handled Correctly
+    - **IMPORTANT**: Re-run the SAME test from task 1.1 - do NOT write a new test
+    - Run multiple file upload test from step 1.1
     - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
     - _Requirements: 2.8_
 
-  - [x] 20.4 Verify preservation tests still pass
-    - **Property 2: Preservation** - Non-Buggy Input Behavior Unchanged
-    - **IMPORTANT**: Re-run the SAME tests from task 12 - do NOT write new tests
-    - Run preservation property tests from step 12
-    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+- [ ] 4. Fix Bug 1.9 - File Type Validation Mismatch
 
+  - [x] 4.1 Align file type validation between frontend and backend
+    - Examine ValidationConstants in input_validation.py (ALLOWED_IMAGE_TYPES, ALLOWED_AUDIO_TYPES)
+    - Examine frontend validation.js line 83 default allowedTypes
+    - Examine frontend app.js file upload handlers
+    - **Decision**: Remove .pdf from frontend validation (backend doesn't support it)
+    - Update validation.js line 83 to remove .pdf from default allowedTypes
+    - Update app.js letter upload validation to only allow ['.jpg', '.jpeg', '.png']
+    - Update app.js audio upload validation to only allow ['.mp3', '.wav']
+    - Ensure consistency across all frontend modules
+    - _Bug_Condition: input.type == "FILE_UPLOAD" AND input.extension == '.pdf'_
+    - _Expected_Behavior: Frontend only allows file types that backend accepts_
+    - _Preservation: Currently supported file types (.jpg, .jpeg, .png, .wav, .mp3) continue to work_
+    - _Requirements: 1.9, 2.9_
 
-### Medium Priority Bug Fixes
-
-- [x] 21. Fix Medium Priority Bug 9 - FIR Retrieval Endpoint Mismatch
-
-  - [x] 21.1 Implement the fix
-    - Modify /fir/{firNumber} endpoint to return full FIR content
-    - Add fir_content field to response (currently only returns metadata)
-    - Option A (recommended): Change backend endpoint to include full content
-    - Option B: Change frontend to call /fir/{fir_number}/content endpoint instead
-    - Implement Option A for backward compatibility
-    - File: `AFIRGEN FINAL/main backend/agentv5.py`
-    - _Bug_Condition: input.type == "API_REQUEST" AND input.endpoint == "/fir/{firNumber}" AND frontend.expectsFullContent AND backend.returnsMetadataOnly_
-    - _Expected_Behavior: FIR endpoint returns full content including fir_content field_
-    - _Preservation: /fir/{fir_number}/content endpoint continues to work, existing metadata fields continue to be returned_
-    - _Requirements: 1.9, 2.9, 3.10_
-
-  - [x] 21.2 Verify bug condition exploration test now passes
-    - **Property 1: Expected Behavior** - FIR Endpoint Returns Full Content
-    - **IMPORTANT**: Re-run the SAME test from task 9 - do NOT write a new test
-    - Run bug condition exploration test from step 9
+  - [x] 4.2 Verify Bug 1.9 exploration test now passes
+    - **Property 1: Expected Behavior** - File Type Validation Aligned
+    - **IMPORTANT**: Re-run the SAME test from task 1.2 - do NOT write a new test
+    - Run file type validation test from step 1.2
     - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
     - _Requirements: 2.9_
 
-  - [x] 21.3 Verify preservation tests still pass
-    - **Property 2: Preservation** - Non-Buggy Input Behavior Unchanged
-    - **IMPORTANT**: Re-run the SAME tests from task 12 - do NOT write new tests
-    - Run preservation property tests from step 12
-    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+- [ ] 5. Fix Bug 1.10 - Non-Image File Read Corruption
 
-- [x] 22. Fix Medium Priority Bug 10 - Shutdown Handling Crash
+  - [x] 5.1 Fix file reading method in frontend api.js
+    - Locate letterFile handling at api.js line 311-320
+    - Current code reads non-image files via File.text() which corrupts binary content
+    - **Fix**: Only support image files for letter upload (align with backend)
+    - Remove the else branch that reads File.text()
+    - Update to only append image files directly to FormData
+    - Add validation to reject non-image files before reading
+    - _Bug_Condition: input.type == "FILE_READ" AND input.fileType != "image" AND input.method == "File.text()"_
+    - _Expected_Behavior: Only image files accepted for letter upload, no File.text() corruption_
+    - _Preservation: Image file reading continues to work correctly_
+    - _Requirements: 1.10, 2.10_
 
-  - [x] 22.1 Implement the fix
-    - Replace HTTPException.to_response() with proper response object at line 1676
-    - Change from: `return HTTPException(status_code=503, detail="Server is shutting down").to_response()`
-    - To: `from fastapi.responses import JSONResponse; return JSONResponse(status_code=503, content={"detail": "Server is shutting down"})`
-    - File: `AFIRGEN FINAL/main backend/agentv5.py`
-    - _Bug_Condition: input.type == "EXCEPTION" AND input.exception == "RuntimeError" AND input.message.contains("shutting down") AND HTTPException.hasNoMethod("to_response")_
-    - _Expected_Behavior: Shutdown error returns proper 503 JSONResponse_
-    - _Preservation: All existing error handling and graceful shutdown functionality continues to work_
-    - _Requirements: 1.10, 2.10, 3.9_
-
-  - [x] 22.2 Verify bug condition exploration test now passes
-    - **Property 1: Expected Behavior** - Shutdown Returns 503 Response
-    - **IMPORTANT**: Re-run the SAME test from task 10 - do NOT write a new test
-    - Run bug condition exploration test from step 10
+  - [x] 5.2 Verify Bug 1.10 exploration test now passes
+    - **Property 1: Expected Behavior** - File Content Integrity
+    - **IMPORTANT**: Re-run the SAME test from task 1.3 - do NOT write a new test
+    - Run file read corruption test from step 1.3
     - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
     - _Requirements: 2.10_
 
-  - [x] 22.3 Verify preservation tests still pass
-    - **Property 2: Preservation** - Non-Buggy Input Behavior Unchanged
-    - **IMPORTANT**: Re-run the SAME tests from task 12 - do NOT write new tests
-    - Run preservation property tests from step 12
-    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+### Priority 2: Frontend UX Improvements
 
-- [x] 23. Fix Medium Priority Bug 11 - Binary File Corruption
+- [ ] 6. Fix Bug 2.1 - Frontend Allows Both Files Then Shows Error
 
-  - [x] 23.1 Implement the fix
-    - Change file reading method for binary files in frontend
-    - Line 313: Check file type first before reading
-    - For binary files (PDF, DOC), use: `const buffer = await letterFile.arrayBuffer();`
-    - For text files, keep: `const text = await letterFile.text();`
-    - Note: After Bug 8 fix, PDF/DOC files are no longer accepted, but implement proper handling for good practice
-    - File: `AFIRGEN FINAL/frontend/js/api.js`
-    - _Bug_Condition: input.type == "FILE_READ" AND input.fileType IN [".pdf", ".doc"] AND frontend.usesTextMethod_
-    - _Expected_Behavior: Binary files read correctly using arrayBuffer() method_
-    - _Preservation: Text file reading continues to work unchanged_
-    - _Requirements: 1.11, 2.11_
+  - [x] 6.1 Improve frontend file selection UX
+    - Update app.js updateFilesState() function
+    - When letterFile is selected, disable audio file input
+    - When audioFile is selected, disable letter file input
+    - Remove error message logic for bothFilesSelected
+    - Update button disable logic to only check hasFiles (not bothFilesSelected)
+    - Add visual indication (grayed out) for disabled file inputs
+    - _Bug_Condition: input.type == "FILE_SELECTION" AND letterFile AND audioFile_
+    - _Expected_Behavior: Frontend prevents second file selection when one is already selected_
+    - _Preservation: Single file selection continues to work correctly_
+    - _Requirements: 2.8_
 
-  - [x] 23.2 Verify bug condition exploration test now passes
-    - **Property 1: Expected Behavior** - Binary Files Read Correctly
-    - **IMPORTANT**: Re-run the SAME test from task 11 - do NOT write a new test
-    - Run bug condition exploration test from step 11
+  - [x] 6.2 Verify Bug 2.1 exploration test now passes
+    - **Property 1: Expected Behavior** - Prevent Multiple File Selection
+    - **IMPORTANT**: Re-run the SAME test from task 1.4 - do NOT write a new test
+    - Run frontend UX test from step 1.4
     - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
-    - _Requirements: 2.11_
+    - _Requirements: 2.8_
 
-  - [x] 23.3 Verify preservation tests still pass
-    - **Property 2: Preservation** - Non-Buggy Input Behavior Unchanged
-    - **IMPORTANT**: Re-run the SAME tests from task 12 - do NOT write new tests
-    - Run preservation property tests from step 12
-    - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions)
+- [ ] 7. Fix Bug 2.2 - Inconsistent File Type Validation Across Frontend Modules
 
+  - [x] 7.1 Standardize file type validation across frontend
+    - Create a centralized file type configuration in validation.js
+    - Define ALLOWED_IMAGE_TYPES = ['.jpg', '.jpeg', '.png']
+    - Define ALLOWED_AUDIO_TYPES = ['.mp3', '.wav']
+    - Update all file upload handlers in app.js to use these constants
+    - Update validation.js validateFile() to use these constants
+    - Update drag-drop.js to use these constants
+    - Remove any hardcoded file type arrays
+    - _Bug_Condition: input.type == "FILE_VALIDATION" AND inconsistent_validation_rules_
+    - _Expected_Behavior: All frontend modules use same file type validation rules_
+    - _Preservation: Existing file validation logic continues to work_
+    - _Requirements: 2.9_
+
+  - [x] 7.2 Verify Bug 2.2 exploration test now passes
+    - **Property 1: Expected Behavior** - Consistent Validation Rules
+    - **IMPORTANT**: Re-run the SAME test from task 1.5 - do NOT write a new test
+    - Run validation consistency test from step 1.5
+    - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
+    - _Requirements: 2.9_
 
 ## Phase 4: Final Validation
 
-- [x] 24. Checkpoint - Ensure all tests pass
-  - Run all bug condition exploration tests (tasks 1-11) - all should PASS
-  - Run all preservation property tests (task 12) - all should PASS
-  - Verify no regressions in existing functionality
-  - Confirm all 11 bugs are fixed
-  - Ask the user if questions arise
+- [x] 8. Verify all preservation tests still pass
+  - **Property 2: Preservation** - No Regressions
+  - **IMPORTANT**: Re-run ALL tests from Phase 2 - do NOT write new tests
+  - Run all preservation property tests from step 2
+  - **EXPECTED OUTCOME**: All tests PASS (confirms no regressions)
+  - Verify:
+    - Valid image uploads work (2.1)
+    - Single file uploads work (2.2)
+    - Valid audio uploads work (2.3)
+    - FIR generation works (2.4)
+    - Session status polling works (2.5)
+    - Authentication works (2.6)
+    - Validation workflow works (2.7)
+    - Error handling works (2.8)
+    - File type validation works (2.9)
+    - Request processing works (2.10)
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10_
 
-## Phase 5: Integration Testing
-
-- [x] 25. Run integration tests
-
-  - [x] 25.1 Test complete text-only FIR generation flow
-    - POST /process with text input
-    - Verify session status is AWAITING_VALIDATION
-    - POST /validate to proceed through validation steps
-    - Poll /session/{id}/status and verify validation_history is returned
-    - Complete all validation steps
-    - Retrieve FIR via /fir/{firNumber} and verify full content is returned
-    - _Requirements: 2.3, 2.4, 2.6, 2.9_
-
-  - [x] 25.2 Test complete audio file FIR generation flow
-    - Upload valid .wav or .mp3 audio file
-    - Verify processing succeeds
-    - Complete validation workflow
-    - Verify FIR generation completes successfully
-    - _Requirements: 3.1, 3.5, 3.6_
-
-  - [x] 25.3 Test complete image file FIR generation flow
-    - Upload valid .jpg or .png image file
-    - Verify processing succeeds
-    - Complete validation workflow
-    - Verify FIR generation completes successfully
-    - _Requirements: 3.1, 3.4, 3.6_
-
-  - [x] 25.4 Test regeneration workflow
-    - Create session and reach validation step
-    - POST /regenerate with JSON body
-    - Verify regeneration succeeds
-    - _Requirements: 2.5_
-
-  - [x] 25.5 Test file upload validation
-    - Attempt to select both letter and audio files
-    - Verify frontend prevents submission
-    - Attempt to upload unsupported file types (.pdf, .m4a)
-    - Verify frontend rejects them
-    - _Requirements: 2.7, 2.8_
-
-  - [x] 25.6 Test graceful shutdown
-    - Initiate shutdown during active request
-    - Verify 503 response is returned properly
-    - Verify no crashes occur
-    - _Requirements: 2.10, 3.9_
-
-  - [x] 25.7 Test authentication and health check
-    - Verify API authentication continues to work
-    - Verify /health endpoint works without authentication
-    - _Requirements: 3.7, 3.8_
-
-- [x] 26. Final checkpoint - Production readiness verification
-  - Verify all 11 bugs are fixed and validated
-  - Verify all preservation tests pass (no regressions)
-  - Verify all integration tests pass
-  - Confirm system is ready for production deployment
-  - Document any remaining issues or follow-up tasks
-
+- [x] 9. Checkpoint - Ensure all tests pass
+  - Verify all exploration tests from Phase 1 now pass (bugs are fixed)
+  - Verify all preservation tests from Phase 2 still pass (no regressions)
+  - Run full test suite including unit, property-based, and integration tests
+  - Ensure backend starts successfully without errors
+  - Ensure all API endpoints work correctly
+  - Ensure file uploads work for all supported types
+  - Verify frontend/backend contract alignment
+  - Test end-to-end FIR generation workflow
+  - Ask the user if questions arise or if any tests fail

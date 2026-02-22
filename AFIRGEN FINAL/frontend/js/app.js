@@ -20,25 +20,49 @@ function updateFilesState() {
   const generateBtn = document.getElementById('generate-btn');
   const statusReady = document.getElementById('status-ready');
   const statusProcessing = document.getElementById('status-processing');
+  const letterInput = document.getElementById('letter-upload');
+  const audioInput = document.getElementById('audio-upload');
+  const letterLabel = document.getElementById('letter-drop-zone');
+  const audioLabel = document.getElementById('audio-drop-zone');
 
-  // Check if both letter and audio files are selected (Bug 7 fix)
-  const bothFilesSelected = !!(letterFile && audioFile);
+  // Disable the other input when one file is selected (Bug 2.1 fix)
+  if (letterInput && audioInput && letterLabel && audioLabel) {
+    letterInput.disabled = !!audioFile;
+    audioInput.disabled = !!letterFile;
+    
+    // Add visual indication for disabled inputs
+    if (audioFile) {
+      letterLabel.style.opacity = '0.5';
+      letterLabel.style.cursor = 'not-allowed';
+      letterLabel.style.pointerEvents = 'none';
+    } else {
+      letterLabel.style.opacity = '1';
+      letterLabel.style.cursor = 'pointer';
+      letterLabel.style.pointerEvents = 'auto';
+    }
+    
+    if (letterFile) {
+      audioLabel.style.opacity = '0.5';
+      audioLabel.style.cursor = 'not-allowed';
+      audioLabel.style.pointerEvents = 'none';
+    } else {
+      audioLabel.style.opacity = '1';
+      audioLabel.style.cursor = 'pointer';
+      audioLabel.style.pointerEvents = 'auto';
+    }
+  }
   
   if (generateBtn) {
-    // Disable button if no files OR if both files are selected
-    generateBtn.disabled = !hasFiles || bothFilesSelected;
-    generateBtn.setAttribute('aria-disabled', (!hasFiles || bothFilesSelected) ? 'true' : 'false');
+    // Enable button when exactly one file is selected
+    generateBtn.disabled = !hasFiles;
+    generateBtn.setAttribute('aria-disabled', !hasFiles ? 'true' : 'false');
   }
 
   if (hasFiles && !isProcessing) {
     statusReady?.classList.remove('hidden');
     statusProcessing?.classList.add('hidden');
     
-    // Show error message if both files are selected
-    if (bothFilesSelected && statusReady) {
-      statusReady.textContent = 'Error: Please select only one input type (letter OR audio, not both)';
-      statusReady.style.color = 'red';
-    } else if (statusReady) {
+    if (statusReady) {
       statusReady.textContent = 'Ready to generate FIR';
       statusReady.style.color = '';
     }
@@ -408,10 +432,22 @@ function initializeApp() {
       const file = e.target.files[0] || null;
 
       if (file) {
+        // If audio file is already selected, clear it (Bug 2.1 fix - prevent both files)
+        if (audioFile) {
+          audioFile = null;
+          if (audioText) {
+            audioText.textContent = 'Upload Audio';
+          }
+          const audioInput = document.getElementById('audio-upload');
+          if (audioInput) {
+            audioInput.value = '';
+          }
+        }
+        
         // Validate file
         const validationResult = await window.Validation.validateFile(file, {
           maxSize: 10 * 1024 * 1024, // 10MB
-          allowedTypes: ['.jpg', '.jpeg', '.png'],
+          allowedTypes: window.Validation.ALLOWED_IMAGE_TYPES,
           checkMimeType: true
         });
 
@@ -449,10 +485,22 @@ function initializeApp() {
       const file = e.target.files[0] || null;
 
       if (file) {
+        // If letter file is already selected, clear it (Bug 2.1 fix - prevent both files)
+        if (letterFile) {
+          letterFile = null;
+          if (letterText) {
+            letterText.textContent = 'Upload Letter';
+          }
+          const letterInput = document.getElementById('letter-upload');
+          if (letterInput) {
+            letterInput.value = '';
+          }
+        }
+        
         // Validate file
         const validationResult = await window.Validation.validateFile(file, {
           maxSize: 10 * 1024 * 1024, // 10MB
-          allowedTypes: ['.mp3', '.wav'],
+          allowedTypes: window.Validation.ALLOWED_AUDIO_TYPES,
           checkMimeType: true
         });
 

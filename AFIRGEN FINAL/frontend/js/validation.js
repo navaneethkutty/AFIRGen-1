@@ -3,6 +3,11 @@
  * Requirements: 5.3.2, 5.3.3
  */
 
+// Centralized file type configuration (Bug 2.2 fix)
+const ALLOWED_IMAGE_TYPES = ['.jpg', '.jpeg', '.png'];
+const ALLOWED_AUDIO_TYPES = ['.mp3', '.wav'];
+const ALLOWED_FILE_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_AUDIO_TYPES];
+
 // Magic number signatures for MIME type validation
 const MAGIC_NUMBERS = {
   'image/jpeg': [
@@ -80,7 +85,7 @@ async function validateMimeType(file) {
  * @param {Array<string>} allowedTypes - Array of allowed file extensions (e.g., ['.jpg', '.png'])
  * @returns {Object} Validation result with success flag and error message
  */
-function validateFileType(file, allowedTypes = ['.jpg', '.jpeg', '.png', '.pdf', '.wav', '.mp3']) {
+function validateFileType(file, allowedTypes = ALLOWED_FILE_TYPES) {
   if (!file) {
     return { success: false, error: 'No file provided' };
   }
@@ -133,7 +138,7 @@ function validateFileSize(file, maxSize = 10 * 1024 * 1024) {
 async function validateFile(file, options = {}) {
   const {
     maxSize = 10 * 1024 * 1024, // 10MB default
-    allowedTypes = ['.jpg', '.jpeg', '.png', '.pdf', '.wav', '.mp3'],
+    allowedTypes = ALLOWED_FILE_TYPES,
     checkMimeType = true
   } = options;
 
@@ -396,7 +401,11 @@ window.Validation = {
   validateText,
   sanitizeInput,
   validateForm,
-  handleValidationError
+  handleValidationError,
+  // Export file type constants (Bug 2.2 fix)
+  ALLOWED_IMAGE_TYPES,
+  ALLOWED_AUDIO_TYPES,
+  ALLOWED_FILE_TYPES
 };
 
 /**

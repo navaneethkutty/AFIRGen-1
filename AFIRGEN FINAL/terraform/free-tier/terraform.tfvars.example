@@ -16,5 +16,27 @@ environment = "free-tier"
 # Example: "203.0.113.45/32" (the /32 means exactly this IP)
 admin_ip = "YOUR_IP_ADDRESS/32"
 
+# EC2 AMI ID (REQUIRED)
+# Ubuntu 22.04 LTS AMI ID for your region
+# To find the latest AMI in us-east-1:
+# aws ec2 describe-images --owners 099720109477 \
+#   --filters "Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*" \
+#   --query 'Images[*].[ImageId,CreationDate]' --output text | sort -k2 -r | head -n1
+# Example for us-east-1: "ami-0c7217cdde317cfec"
+ami_id = "ami-XXXXXXXXXXXXXXXXX"
+
+# Database Configuration
+# RDS endpoint will be populated after RDS instance is created
+# For initial deployment, leave as placeholder
+rds_endpoint = "placeholder.rds.amazonaws.com"
+
+# Database name
+db_name = "fir_db"
+
+# Database credentials (REQUIRED - use strong passwords)
+db_username = "admin"
+db_password = "CHANGE_ME_TO_STRONG_PASSWORD"
+
 # Note: Network configuration (VPC CIDR, subnet CIDRs) is fixed in variables.tf
 # and should not be modified to maintain free tier architecture compliance.
+

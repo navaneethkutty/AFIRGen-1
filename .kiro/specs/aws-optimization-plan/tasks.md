@@ -35,7 +35,7 @@ This implementation plan deploys the AFIRGen system on AWS infrastructure using 
     - Test that AWS Cost Explorer shows $0.00 charges for free tier services
     - Generate test data for various resource usage levels
   
-  - [ ] 1.5 Launch EC2 t2.micro instance with user data script
+  - [x] 1.5 Launch EC2 t2.micro instance with user data script
     - Launch t2.micro instance in public subnet
     - Attach 30GB gp3 EBS volume
     - Configure user data script to install Docker, Docker Compose, CloudWatch agent

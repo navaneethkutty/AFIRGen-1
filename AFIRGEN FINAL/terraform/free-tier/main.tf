@@ -42,6 +42,10 @@ output "deployment_summary" {
     s3_endpoint_id      = aws_vpc_endpoint.s3.id
     ec2_security_group  = aws_security_group.ec2.id
     rds_security_group  = aws_security_group.rds.id
+    ec2_instance_id     = aws_instance.main.id
+    ec2_public_ip       = aws_eip.main.public_ip
+    rds_instance_id     = aws_db_instance.main.id
+    rds_endpoint        = aws_db_instance.main.endpoint
     account_id          = data.aws_caller_identity.current.account_id
     region              = data.aws_region.current.name
   }

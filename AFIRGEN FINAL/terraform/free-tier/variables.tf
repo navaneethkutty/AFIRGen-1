@@ -38,6 +38,43 @@ variable "admin_ip" {
   }
 }
 
+# EC2 Configuration
+variable "ami_id" {
+  description = "AMI ID for EC2 instance (Ubuntu 22.04 LTS recommended)"
+  type        = string
+  
+  # To find the latest Ubuntu 22.04 AMI in your region:
+  # aws ec2 describe-images --owners 099720109477 \
+  #   --filters "Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*" \
+  #   --query 'Images[*].[ImageId,CreationDate]' --output text | sort -k2 -r | head -n1
+}
+
+# Database Configuration
+variable "rds_endpoint" {
+  description = "RDS endpoint (will be populated after RDS creation)"
+  type        = string
+  default     = "placeholder.rds.amazonaws.com"
+}
+
+variable "db_name" {
+  description = "Database name"
+  type        = string
+  default     = "fir_db"
+}
+
+variable "db_username" {
+  description = "Database master username"
+  type        = string
+  default     = "admin"
+  sensitive   = true
+}
+
+variable "db_password" {
+  description = "Database master password"
+  type        = string
+  sensitive   = true
+}
+
 locals {
   vpc_cidr             = "10.0.0.0/16"
   public_subnet_cidr   = "10.0.1.0/24"
