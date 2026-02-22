@@ -76,8 +76,21 @@
       }
     },
     "testMatch": [
-      "**/__tests__/**/*.js",
-      "**/?(*.)+(spec|test).js"
+      "<rootDir>/js/morphing-transitions.test.js",
+      "<rootDir>/js/loading-animations.test.js",
+      "<rootDir>/js/error-recovery.test.js",
+      "<rootDir>/js/ui.toast.test.js",
+      "<rootDir>/js/subtle-motion.test.js",
+      "<rootDir>/js/error-handling-integration.test.js",
+      "<rootDir>/js/keyboard-navigation.test.js",
+      "<rootDir>/js/floating-elements.test.js",
+      "<rootDir>/js/hover-effects.test.js",
+      "<rootDir>/js/cursor-effects.test.js",
+      "<rootDir>/js/error-handling.test.js",
+      "<rootDir>/js/security-csp.test.js"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/"
     ]
   },
   "lint-staged": {

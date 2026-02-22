@@ -6,7 +6,6 @@
  * all FIR fields, be properly formatted, and be downloadable without errors.
  */
 
-const { test } = require('@fast-check/jest');
 const fc = require('fast-check');
 
 // Mock jsPDF
@@ -317,8 +316,16 @@ describe('Property 10: PDF Export Completeness', () => {
         fc.assert(
             fc.property(
                 fc.record({
-                    ...firDataArbitrary.value,
-                    description: fc.string({ minLength: 1000, maxLength: 5000 })
+                    number: fc.option(fc.string({ minLength: 5, maxLength: 20 }), { nil: undefined }),
+                    date: fc.option(fc.date(), { nil: undefined }),
+                    location: fc.option(fc.string({ minLength: 5, maxLength: 50 }), { nil: undefined }),
+                    policeStation: fc.option(fc.string({ minLength: 5, maxLength: 50 }), { nil: undefined }),
+                    complainant: fc.option(fc.string({ minLength: 10, maxLength: 100 }), { nil: undefined }),
+                    description: fc.string({ minLength: 1000, maxLength: 5000 }),
+                    content: fc.option(fc.string({ minLength: 20, maxLength: 500 }), { nil: undefined }),
+                    fir_content: fc.option(fc.string({ minLength: 20, maxLength: 500 }), { nil: undefined }),
+                    status: fc.option(fc.constantFrom('pending', 'investigating', 'closed'), { nil: undefined }),
+                    officer: fc.option(fc.string({ minLength: 5, maxLength: 50 }), { nil: undefined })
                 }),
                 (firData) => {
                     const pdf = generatePDF(firData);

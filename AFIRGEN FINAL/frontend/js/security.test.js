@@ -10,23 +10,17 @@ global.DOMPurify = {
   })
 };
 
-// Mock document
-global.document = {
-  querySelector: jest.fn(),
-  addEventListener: jest.fn(),
-  readyState: 'complete'
-};
-
-// Mock console
-global.console = {
-  log: jest.fn(),
-  error: jest.fn(),
-  warn: jest.fn()
-};
-
 describe('Security Module', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    jest.spyOn(document, 'querySelector');
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   describe('sanitizeHTML()', () => {
@@ -460,8 +454,9 @@ describe('Security Module', () => {
         const escaped = escapeHTML(payload);
         expect(escaped).not.toContain('<script');
         expect(escaped).not.toContain('javascript:');
-        expect(escaped).not.toContain('onerror=');
-        expect(escaped).not.toContain('onload=');
+        expect(escaped).toContain('onerror=');
+        expect(escaped).toContain('onload=');
+        expect(escaped).not.toContain('<img');
       });
     });
 
@@ -481,7 +476,8 @@ describe('Security Module', () => {
 
       const payload = '<div onclick="alert(\'XSS\')">Click me</div>';
       const escaped = escapeHTML(payload);
-      expect(escaped).not.toContain('onclick=');
+      expect(escaped).toContain('onclick=');
+      expect(escaped).not.toContain('<div');
     });
   });
 });
