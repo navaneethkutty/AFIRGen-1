@@ -40,9 +40,10 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 
-# Copy the source code into the container.
-# COPY . .
-COPY agentv5.py ./
+# Copy the backend source code into the container.
+# NOTE: agentv5 imports local packages (infrastructure/, services/, middleware/, etc.).
+# Copying only agentv5.py causes runtime import failures in production.
+COPY . .
 # Expose the port that the application listens on.
 EXPOSE 8000
 
