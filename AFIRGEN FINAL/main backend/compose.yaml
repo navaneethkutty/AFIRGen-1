@@ -19,13 +19,24 @@ services:
       - "8000:8000"
     environment:
       # Database Configuration
+      - MYSQL_HOST=db
+      - MYSQL_PORT=3306
+      - MYSQL_USER=${MYSQL_USER:-afirgen_user}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:?MYSQL_PASSWORD must be set}
+      - MYSQL_DB=${MYSQL_DB:-afirgen}
+
+      # Legacy DB aliases (backward compatibility)
       - DB_HOST=db
       - DB_PORT=3306
-      - DB_USER=afirgen_user
-      - DB_PASSWORD=afirgen_password
-      - DB_NAME=afirgen
+      - DB_USER=${MYSQL_USER:-afirgen_user}
+      - DB_PASSWORD=${MYSQL_PASSWORD:?MYSQL_PASSWORD must be set}
+      - DB_NAME=${MYSQL_DB:-afirgen}
       - DB_POOL_SIZE=20
       - DB_MAX_OVERFLOW=10
+
+      # API Authentication
+      - API_KEY=${API_KEY:?API_KEY must be set}
+      - FIR_AUTH_KEY=${FIR_AUTH_KEY:?FIR_AUTH_KEY must be set}
       
       # Redis Configuration
       - REDIS_HOST=redis
@@ -72,14 +83,14 @@ services:
     image: mysql:8.0
     container_name: afirgen-db
     environment:
-      - MYSQL_ROOT_PASSWORD=rootpassword
-      - MYSQL_DATABASE=afirgen
-      - MYSQL_USER=afirgen_user
-      - MYSQL_PASSWORD=afirgen_password
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set}
+      - MYSQL_DATABASE=${MYSQL_DB:-afirgen}
+      - MYSQL_USER=${MYSQL_USER:-afirgen_user}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:?MYSQL_PASSWORD must be set}
       - MYSQL_CHARACTER_SET_SERVER=utf8mb4
       - MYSQL_COLLATION_SERVER=utf8mb4_unicode_ci
-    ports:
-      - "3306:3306"
+    expose:
+      - "3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./migrations:/docker-entrypoint-initdb.d:ro
@@ -87,7 +98,7 @@ services:
       - afirgen-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -103,8 +114,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: afirgen-redis
-    ports:
-      - "6379:6379"
+    expose:
+      - "6379"
     volumes:
       - redis_data:/data
     networks:
@@ -131,11 +142,18 @@ services:
     command: celery -A infrastructure.celery_app worker --loglevel=info --concurrency=4 --max-tasks-per-child=1000
     environment:
       # Database Configuration
+      - MYSQL_HOST=db
+      - MYSQL_PORT=3306
+      - MYSQL_USER=${MYSQL_USER:-afirgen_user}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:?MYSQL_PASSWORD must be set}
+      - MYSQL_DB=${MYSQL_DB:-afirgen}
+
+      # Legacy DB aliases (backward compatibility)
       - DB_HOST=db
       - DB_PORT=3306
-      - DB_USER=afirgen_user
-      - DB_PASSWORD=afirgen_password
-      - DB_NAME=afirgen
+      - DB_USER=${MYSQL_USER:-afirgen_user}
+      - DB_PASSWORD=${MYSQL_PASSWORD:?MYSQL_PASSWORD must be set}
+      - DB_NAME=${MYSQL_DB:-afirgen}
       
       # Redis Configuration
       - REDIS_HOST=redis
@@ -155,6 +173,10 @@ services:
       - SERVICE_NAME=afirgen-celery
       - LOG_LEVEL=INFO
       - LOG_FORMAT=json
+
+      # API Authentication
+      - API_KEY=${API_KEY:?API_KEY must be set}
+      - FIR_AUTH_KEY=${FIR_AUTH_KEY:?FIR_AUTH_KEY must be set}
     depends_on:
       db:
         condition: service_healthy
@@ -180,6 +202,10 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
       - SERVICE_NAME=afirgen-celery-beat
       - LOG_LEVEL=INFO
+
+      # API Authentication
+      - API_KEY=${API_KEY:?API_KEY must be set}
+      - FIR_AUTH_KEY=${FIR_AUTH_KEY:?FIR_AUTH_KEY must be set}
     depends_on:
       redis:
         condition: service_healthy
@@ -218,8 +244,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:?GF_SECURITY_ADMIN_PASSWORD must be set}
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - grafana_data:/var/lib/grafana
@@ -244,4 +270,3 @@ volumes:
     driver: local
   grafana_data:
     driver: local
-
