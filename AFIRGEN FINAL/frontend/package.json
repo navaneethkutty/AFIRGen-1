@@ -76,21 +76,22 @@
       }
     },
     "testMatch": [
-      "<rootDir>/js/morphing-transitions.test.js",
-      "<rootDir>/js/loading-animations.test.js",
-      "<rootDir>/js/error-recovery.test.js",
-      "<rootDir>/js/ui.toast.test.js",
-      "<rootDir>/js/subtle-motion.test.js",
-      "<rootDir>/js/error-handling-integration.test.js",
-      "<rootDir>/js/keyboard-navigation.test.js",
-      "<rootDir>/js/floating-elements.test.js",
-      "<rootDir>/js/hover-effects.test.js",
-      "<rootDir>/js/cursor-effects.test.js",
-      "<rootDir>/js/error-handling.test.js",
-      "<rootDir>/js/security-csp.test.js"
+      "**/__tests__/**/*.js",
+      "**/?(*.)+(spec|test).js"
     ],
     "testPathIgnorePatterns": [
-      "/node_modules/"
+      "/node_modules/",
+      "<rootDir>/tests/",
+      "<rootDir>/js/.*\\.pbt\\.test\\.js$",
+      "<rootDir>/js/pdf-export-completeness\\.test\\.js$",
+      "<rootDir>/js/dark-mode-contrast\\.test\\.js$",
+      "<rootDir>/js/api\\.test\\.js$",
+      "<rootDir>/js/ui\\.test\\.js$",
+      "<rootDir>/js/text-reveal\\.test\\.js$",
+      "<rootDir>/js/storage\\.test\\.js$",
+      "<rootDir>/js/svg-icon-animations\\.test\\.js$",
+      "<rootDir>/js/validation\\.test\\.js$",
+      "<rootDir>/js/security\\.test\\.js$"
     ]
   },
   "lint-staged": {
