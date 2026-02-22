@@ -108,7 +108,7 @@ except ImportError:
     # Will log this after logger is configured
 
 # Import secrets manager
-from secrets_manager import get_secret
+from infrastructure.secrets_manager import get_secret
 
 # ------------------------------------------------------------- CONFIGURATION DICTIONARY    
 CFG = {
@@ -122,7 +122,7 @@ CFG = {
         "port": int(os.getenv("MYSQL_PORT", 3306)),
         "user": get_secret("MYSQL_USER", default="root"),
         "password": get_secret("MYSQL_PASSWORD", required=True),
-        "database": get_secret("MYSQL_DB", default="test_db"),
+        "database": get_secret("MYSQL_DB", default="fir_db"),
         "charset": "utf8mb4",
         "autocommit": False,  # ZERO DATA LOSS: Disable autocommit for transaction support
         "pool_size": 15,  # CONCURRENCY: Increased for 10+ concurrent requests
@@ -1607,6 +1607,10 @@ class APIAuthMiddleware(BaseHTTPMiddleware):
     PUBLIC_ENDPOINTS = {"/health", "/docs", "/redoc", "/openapi.json"}
     
     async def dispatch(self, request: Request, call_next):
+        # Always allow CORS preflight requests
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         # Skip authentication for public endpoints
         if request.url.path in self.PUBLIC_ENDPOINTS:
             return await call_next(request)

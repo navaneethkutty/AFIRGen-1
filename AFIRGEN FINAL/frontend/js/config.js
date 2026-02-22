@@ -17,10 +17,10 @@ window.ENV = {
   // - AWS ALB: 'https://afirgen-alb-123456.us-east-1.elb.amazonaws.com'
   API_BASE_URL: 'http://localhost:8000',
 
-  // API Key for authentication - MUST be configured
-  // Generate a secure key using: python -c "import secrets; print(secrets.token_urlsafe(32))"
-  // This should match the API_KEY environment variable in the backend
-  API_KEY: 'your-api-key-here',
+  // API key is intentionally blank by default.
+  // Do NOT hardcode long-lived secrets in browser-delivered JavaScript.
+  // If required for non-production demos, inject a short-lived key at deploy time.
+  API_KEY: '',
 
   // Environment name (development, staging, production)
   ENVIRONMENT: 'development',

@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci --only=production
+RUN npm ci
 
 # Copy source files
 COPY . .
@@ -21,6 +21,7 @@ FROM nginx:alpine
 
 # Build arguments for configuration
 ARG API_BASE_URL=http://localhost:8000
+ARG API_KEY=
 ARG ENVIRONMENT=production
 ARG ENABLE_DEBUG=false
 
@@ -28,13 +29,14 @@ ARG ENABLE_DEBUG=false
 COPY --from=builder /app/dist/ /usr/share/nginx/html/
 
 # Copy additional assets if not in dist
-COPY --from=builder /app/manifest.json /usr/share/nginx/html/ 2>/dev/null || true
-COPY --from=builder /app/sw.js /usr/share/nginx/html/ 2>/dev/null || true
-COPY --from=builder /app/assets/ /usr/share/nginx/html/assets/ 2>/dev/null || true
+COPY --from=builder /app/manifest.json /usr/share/nginx/html/
+COPY --from=builder /app/sw.js /usr/share/nginx/html/
+COPY --from=builder /app/assets/ /usr/share/nginx/html/assets/
 
 # Configure API URL at build time if config.js exists
 RUN if [ -f /usr/share/nginx/html/js/config.js ]; then \
     sed -i "s|API_BASE_URL: '[^']*'|API_BASE_URL: '${API_BASE_URL}'|g" /usr/share/nginx/html/js/config.js && \
+    sed -i "s|API_KEY: '[^']*'|API_KEY: '${API_KEY}'|g" /usr/share/nginx/html/js/config.js && \
     sed -i "s|ENVIRONMENT: '[^']*'|ENVIRONMENT: '${ENVIRONMENT}'|g" /usr/share/nginx/html/js/config.js && \
     sed -i "s|ENABLE_DEBUG: [^,]*,|ENABLE_DEBUG: ${ENABLE_DEBUG},|g" /usr/share/nginx/html/js/config.js; \
     fi
