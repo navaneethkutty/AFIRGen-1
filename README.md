@@ -107,6 +107,38 @@ For detailed performance information, see:
 
 ---
 
+
+## ✅ Demo Readiness Check
+Run the automated demo-readiness checker to validate stable frontend tests and static backend checks in one command:
+
+```bash
+cd "AFIRGEN FINAL"
+python check_demo_readiness.py
+```
+
+### Do I have to run it locally?
+- **For your own machine/demo laptop:** yes, run it locally from this repo clone.
+- **For CI/CD:** you can also run the same command in a pipeline job.
+
+### Prerequisites (minimum)
+- **OS:** Linux/macOS/Windows (WSL works as well)
+- **Python:** 3.10+
+- **Node.js:** 18+ and npm
+- **Frontend dependencies installed:**
+  ```bash
+  cd "AFIRGEN FINAL/frontend"
+  npm install
+  ```
+- **Backend validator files present:** repository cloned with all project files
+
+### Optional (for full readiness, not just demo check)
+- **Docker + Docker Compose plugin** (`docker compose`) for compose validation
+- **Running backend on `http://localhost:8000`** if you want `test_security.py` to pass without warning
+
+This is intended for **demo confidence** (not full production certification).
+
+---
+
 ## 🧰 Tech Stack
 **Python**, **FastAPI**, **LLaMA**, **Mistral**, **Whisper**, **Donut OCR**, **IndicBERT**, **MySQL**, **Docker**
 
