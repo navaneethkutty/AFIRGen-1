@@ -1,0 +1,20 @@
+# AFIRGen Free Tier Configuration Example
+# Copy this file to terraform.tfvars and customize for your deployment
+
+# AWS Region (us-east-1 recommended for free tier)
+aws_region = "us-east-1"
+
+# Project name (used for resource naming)
+project_name = "afirgen"
+
+# Environment (should remain free-tier)
+environment = "free-tier"
+
+# Administrator IP for SSH access (REQUIRED)
+# Replace with your actual IP address in CIDR notation
+# To find your IP: curl ifconfig.me
+# Example: "203.0.113.45/32" (the /32 means exactly this IP)
+admin_ip = "YOUR_IP_ADDRESS/32"
+
+# Note: Network configuration (VPC CIDR, subnet CIDRs) is fixed in variables.tf
+# and should not be modified to maintain free tier architecture compliance.

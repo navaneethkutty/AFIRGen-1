@@ -21,14 +21,27 @@ function updateFilesState() {
   const statusReady = document.getElementById('status-ready');
   const statusProcessing = document.getElementById('status-processing');
 
+  // Check if both letter and audio files are selected (Bug 7 fix)
+  const bothFilesSelected = !!(letterFile && audioFile);
+  
   if (generateBtn) {
-    generateBtn.disabled = !hasFiles;
-    generateBtn.setAttribute('aria-disabled', !hasFiles ? 'true' : 'false');
+    // Disable button if no files OR if both files are selected
+    generateBtn.disabled = !hasFiles || bothFilesSelected;
+    generateBtn.setAttribute('aria-disabled', (!hasFiles || bothFilesSelected) ? 'true' : 'false');
   }
 
   if (hasFiles && !isProcessing) {
     statusReady?.classList.remove('hidden');
     statusProcessing?.classList.add('hidden');
+    
+    // Show error message if both files are selected
+    if (bothFilesSelected && statusReady) {
+      statusReady.textContent = 'Error: Please select only one input type (letter OR audio, not both)';
+      statusReady.style.color = 'red';
+    } else if (statusReady) {
+      statusReady.textContent = 'Ready to generate FIR';
+      statusReady.style.color = '';
+    }
   } else {
     statusReady?.classList.add('hidden');
   }
@@ -398,7 +411,7 @@ function initializeApp() {
         // Validate file
         const validationResult = await window.Validation.validateFile(file, {
           maxSize: 10 * 1024 * 1024, // 10MB
-          allowedTypes: ['.jpg', '.jpeg', '.png', '.pdf', '.txt', '.doc', '.docx'],
+          allowedTypes: ['.jpg', '.jpeg', '.png'],
           checkMimeType: true
         });
 
@@ -439,7 +452,7 @@ function initializeApp() {
         // Validate file
         const validationResult = await window.Validation.validateFile(file, {
           maxSize: 10 * 1024 * 1024, // 10MB
-          allowedTypes: ['.mp3', '.wav', '.m4a', '.ogg'],
+          allowedTypes: ['.mp3', '.wav'],
           checkMimeType: true
         });
 

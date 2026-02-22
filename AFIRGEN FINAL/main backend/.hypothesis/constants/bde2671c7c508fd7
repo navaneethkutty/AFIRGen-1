@@ -1,0 +1,4 @@
+# file: C:\Users\knith\OneDrive\Desktop\AFIRGen-1\AFIRGEN FINAL\main backend\infrastructure\reliability.py
+# hypothesis_version: 6.151.9
+
+[0.5, 1.0, 2.0, 5.0, 30.0, 60.0, 300.0, 100, 'active_requests', 'attempts', 'check_func', 'checks', 'circuit_breaker', 'closed', 'failure_count', 'half_open', 'handlers', 'healthy', 'history_size', 'in_progress', 'is_shutting_down', 'last_check', 'last_failure_time', 'last_recovery', 'max_attempts', 'name', 'open', 'overall_healthy', 'recovery_interval', 'recovery_timeout', 'reliability', 'required', 'retry_policy', 'shutdown_timeout', 'state', 'threshold', 'timestamp', 'uptime_percentage']

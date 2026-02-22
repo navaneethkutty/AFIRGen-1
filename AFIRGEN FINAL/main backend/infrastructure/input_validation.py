@@ -142,7 +142,7 @@ class ValidationStep(str, Enum):
 # ------------------------------------------------------------- VALIDATED REQUEST MODELS
 class ProcessRequest(BaseModel):
     """Validated request model for /process endpoint"""
-    text: Optional[constr(min_length=ValidationConstants.MIN_TEXT_LENGTH, max_length=ValidationConstants.MAX_TEXT_LENGTH)] = None
+    text: Optional[str] = None
     
     @validator('text')
     def sanitize_text_input(cls, v):
@@ -159,9 +159,9 @@ class ProcessRequest(BaseModel):
 
 class ValidationRequest(BaseModel):
     """Validated request model for /validate endpoint"""
-    session_id: constr(regex=ValidationConstants.UUID_PATTERN)
+    session_id: str
     approved: bool
-    user_input: Optional[constr(max_length=ValidationConstants.MAX_USER_INPUT_LENGTH)] = None
+    user_input: Optional[str] = None
     regenerate: bool = False
     
     @validator('session_id')
@@ -188,9 +188,9 @@ class ValidationRequest(BaseModel):
 
 class RegenerateRequest(BaseModel):
     """Validated request model for /regenerate endpoint"""
-    session_id: constr(regex=ValidationConstants.UUID_PATTERN)
+    session_id: str
     step: ValidationStep
-    user_input: Optional[constr(max_length=ValidationConstants.MAX_USER_INPUT_LENGTH)] = None
+    user_input: Optional[str] = None
     
     @validator('session_id')
     def validate_session_id(cls, v):
@@ -215,8 +215,8 @@ class RegenerateRequest(BaseModel):
 
 class AuthRequest(BaseModel):
     """Validated request model for /authenticate endpoint"""
-    fir_number: constr(regex=ValidationConstants.FIR_NUMBER_PATTERN, max_length=ValidationConstants.MAX_FIR_NUMBER_LENGTH)
-    auth_key: constr(min_length=8, max_length=ValidationConstants.MAX_AUTH_KEY_LENGTH)
+    fir_number: str
+    auth_key: str
     
     @validator('fir_number')
     def validate_fir_number(cls, v):
@@ -240,7 +240,7 @@ class AuthRequest(BaseModel):
 
 class CircuitBreakerResetRequest(BaseModel):
     """Validated request model for circuit breaker reset"""
-    name: constr(regex=r'^[a-z_]+$')
+    name: str
     
     @validator('name')
     def validate_name(cls, v):

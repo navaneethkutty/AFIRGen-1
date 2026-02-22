@@ -122,12 +122,11 @@ CFG = {
         "port": int(os.getenv("MYSQL_PORT", 3306)),
         "user": get_secret("MYSQL_USER", default="root"),
         "password": get_secret("MYSQL_PASSWORD", required=True),
-        "database": get_secret("MYSQL_DB", default="fir_db"),
+        "database": get_secret("MYSQL_DB", default="test_db"),
         "charset": "utf8mb4",
         "autocommit": False,  # ZERO DATA LOSS: Disable autocommit for transaction support
         "pool_size": 15,  # CONCURRENCY: Increased for 10+ concurrent requests
         "pool_reset_session": True,  # FIX: Reset session on connection return
-        "pool_timeout": 30,  # FIX: Connection timeout
     },
     "concurrency": {
         "max_concurrent_requests": int(os.getenv("MAX_CONCURRENT_REQUESTS", 15)),  # Allow 15 concurrent FIR generations
@@ -220,7 +219,7 @@ def validate_uploaded_file(file_path: Path, content_type: str) -> bool:
     
     return True
 
-def get_fir_data(session_state: dict) -> dict:
+def get_fir_data(session_state: dict, fir_number: str) -> dict:
     from datetime import datetime
 
     now = datetime.now()
@@ -229,7 +228,7 @@ def get_fir_data(session_state: dict) -> dict:
 
     # Construct FIR data dict using available session_state and defaults
     fir_data = {
-        'fir_number': session_state.get('fir_number', 'N/A'),
+        'fir_number': fir_number,  # Use the passed fir_number parameter
         'police_station': 'Central Police Station',  # hardcoded or derived from config/session
         'district': 'Metro City',
         'state': 'State of Example',
@@ -275,6 +274,7 @@ def get_fir_data(session_state: dict) -> dict:
     }
 
     return fir_data
+
 
 
 fir_template = """
@@ -1202,6 +1202,12 @@ DatabaseTask.set_db_pool(db.pool)
 
 log.info("Background task manager and FIR service initialized")
 
+# ------------------------------------------------------------- REQUEST MODELS
+class RegenerateRequest(BaseModel):
+    """Request model for regenerate endpoint"""
+    step: ValidationStep
+    user_input: Optional[str] = None
+
 # ------------------------------------------------------------- INTERACTIVE STATE & WORKFLOW
 class InteractiveFIRState(BaseModel):
     session_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -1668,10 +1674,10 @@ class RequestTrackingMiddleware(BaseHTTPMiddleware):
             return response
         except RuntimeError as e:
             if "shutting down" in str(e):
-                return HTTPException(
+                return JSONResponse(
                     status_code=503,
-                    detail="Server is shutting down"
-                ).to_response()
+                    content={"detail": "Server is shutting down"}
+                )
             raise
         except Exception as e:
             # Record error metrics
@@ -1753,6 +1759,7 @@ async def process_endpoint(
                     })
                     state.current_validation_step = ValidationStep.TRANSCRIPT_REVIEW
                     state.awaiting_validation = True
+                    session_manager.set_session_status(state.session_id, SessionStatus.AWAITING_VALIDATION)
                 
                 session_manager.create_session(state.session_id, state.dict())
                 
@@ -1954,15 +1961,20 @@ async def get_session_status(session_id: str):
         "status": session["status"],
         "current_step": session["state"].get("current_validation_step"),
         "awaiting_validation": session["state"].get("awaiting_validation", False),
+        "validation_history": session["state"].get("validation_history", []),
         "created_at": session["created_at"].isoformat(),
         "last_activity": session["last_activity"].isoformat()
     }
 
 @app.post("/regenerate/{session_id}")
-async def regenerate_step(session_id: str, step: ValidationStep, user_input: Optional[str] = None):
+async def regenerate_step(session_id: str, regenerate_req: RegenerateRequest):
     """Regenerate a validation step with validated inputs"""
     # Validate session_id parameter
     session_id = validate_session_id_param(session_id)
+    
+    # Extract step and user_input from request body
+    step = regenerate_req.step
+    user_input = regenerate_req.user_input
     
     session = session_manager.get_session(session_id)
     if not session:
@@ -2073,12 +2085,14 @@ async def get_fir_status(fir_number: str):
         if not fir_record:
             raise HTTPException(status_code=404, detail="FIR not found")
         
-        # PERFORMANCE: Return minimal data without full content for faster response
+        # Return full FIR data including content (Bug 9 fix)
+        # Frontend expects full content from this endpoint
         return {
             "fir_number": fir_number,
             "status": fir_record["status"],
             "created_at": fir_record["created_at"],
-            "finalized_at": fir_record.get("finalized_at")
+            "finalized_at": fir_record.get("finalized_at"),
+            "fir_content": fir_record.get("fir_content")
         }
         
     except HTTPException:
