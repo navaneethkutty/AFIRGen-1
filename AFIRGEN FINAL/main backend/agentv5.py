@@ -1502,11 +1502,26 @@ app = FastAPI(version="8.0.0", lifespan=lifespan)
 # Setup X-Ray distributed tracing
 setup_xray(app, service_name="afirgen-main-backend")
 
-# CORS Configuration - Load from environment variable
-cors_origins_env = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:8000")
+# CORS Configuration - strict defaults for production
+environment = os.getenv("ENVIRONMENT", "production").lower()
+default_cors = "http://localhost:3000,http://localhost:8000" if environment != "production" else ""
+cors_origins_env = os.getenv("CORS_ORIGINS", default_cors)
 cors_origins = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
 
-if "*" in cors_origins:
+if environment == "production":
+    if not cors_origins:
+        raise RuntimeError("CORS_ORIGINS must be explicitly configured in production")
+
+    insecure_origins = {
+        origin for origin in cors_origins
+        if origin == "*" or "localhost" in origin or "127.0.0.1" in origin
+    }
+    if insecure_origins:
+        raise RuntimeError(
+            f"Insecure production CORS origins detected: {sorted(insecure_origins)}. "
+            "Use only trusted HTTPS domains."
+        )
+elif "*" in cors_origins:
     log.warning("⚠️  CORS configured with wildcard (*) - This should only be used in development!")
 
 log.info(f"CORS allowed origins: {cors_origins}")
