@@ -107,6 +107,19 @@ For detailed performance information, see:
 
 ---
 
+
+## ✅ Demo Readiness Check
+Run the automated demo-readiness checker to validate stable frontend tests and static backend checks in one command:
+
+```bash
+cd "AFIRGEN FINAL"
+python check_demo_readiness.py
+```
+
+This is intended for **demo confidence** (not full production certification).
+
+---
+
 ## 🧰 Tech Stack
 **Python**, **FastAPI**, **LLaMA**, **Mistral**, **Whisper**, **Donut OCR**, **IndicBERT**, **MySQL**, **Docker**
 
