@@ -11,6 +11,7 @@ let sessionId = null;
 let currentStep = null;
 let isProcessingValidation = false;
 let deferredPrompt = null;
+let fileSelectionLock = false;  // HIGH PRIORITY FIX: Prevent race conditions in file selection
 
 /**
  * Update files state and UI
@@ -429,107 +430,129 @@ function initializeApp() {
 
   if (letterUpload) {
     letterUpload.addEventListener('change', async (e) => {
-      const file = e.target.files[0] || null;
+      // HIGH PRIORITY FIX: Prevent race conditions with file selection lock
+      if (fileSelectionLock) {
+        console.warn('File selection already in progress');
+        return;
+      }
+      
+      fileSelectionLock = true;
+      try {
+        const file = e.target.files[0] || null;
 
-      if (file) {
-        // If audio file is already selected, clear it (Bug 2.1 fix - prevent both files)
-        if (audioFile) {
-          audioFile = null;
-          if (audioText) {
-            audioText.textContent = 'Upload Audio';
+        if (file) {
+          // If audio file is already selected, clear it (Bug 2.1 fix - prevent both files)
+          if (audioFile) {
+            audioFile = null;
+            if (audioText) {
+              audioText.textContent = 'Upload Audio';
+            }
+            const audioInput = document.getElementById('audio-upload');
+            if (audioInput) {
+              audioInput.value = '';
+            }
           }
-          const audioInput = document.getElementById('audio-upload');
-          if (audioInput) {
-            audioInput.value = '';
-          }
-        }
-        
-        // Validate file
-        const validationResult = await window.Validation.validateFile(file, {
-          maxSize: 10 * 1024 * 1024, // 10MB
-          allowedTypes: window.Validation.ALLOWED_IMAGE_TYPES,
-          checkMimeType: true
-        });
+          
+          // Validate file
+          const validationResult = await window.Validation.validateFile(file, {
+            maxSize: 10 * 1024 * 1024, // 10MB
+            allowedTypes: window.Validation.ALLOWED_IMAGE_TYPES,
+            checkMimeType: true
+          });
 
-        if (!validationResult.success) {
-          // Use new validation error handling system
-          window.Validation.handleValidationError(
-            { error: validationResult.error },
-            'letter file upload'
-          );
-          e.target.value = ''; // Clear the input
+          if (!validationResult.success) {
+            // Use new validation error handling system
+            window.Validation.handleValidationError(
+              { error: validationResult.error },
+              'letter file upload'
+            );
+            e.target.value = ''; // Clear the input
+            letterFile = null;
+            if (letterText) {
+              letterText.textContent = 'Upload Letter';
+            }
+          } else {
+            letterFile = file;
+            if (letterText) {
+              letterText.textContent = file.name;
+            }
+            window.showToast(`Letter file uploaded: ${file.name}`, 'success', 3000);
+          }
+        } else {
           letterFile = null;
           if (letterText) {
             letterText.textContent = 'Upload Letter';
           }
-        } else {
-          letterFile = file;
-          if (letterText) {
-            letterText.textContent = file.name;
-          }
-          window.showToast(`Letter file uploaded: ${file.name}`, 'success', 3000);
         }
-      } else {
-        letterFile = null;
-        if (letterText) {
-          letterText.textContent = 'Upload Letter';
-        }
-      }
 
-      updateFilesState();
+        updateFilesState();
+      } finally {
+        fileSelectionLock = false;
+      }
     });
   }
 
   if (audioUpload) {
     audioUpload.addEventListener('change', async (e) => {
-      const file = e.target.files[0] || null;
+      // HIGH PRIORITY FIX: Prevent race conditions with file selection lock
+      if (fileSelectionLock) {
+        console.warn('File selection already in progress');
+        return;
+      }
+      
+      fileSelectionLock = true;
+      try {
+        const file = e.target.files[0] || null;
 
-      if (file) {
-        // If letter file is already selected, clear it (Bug 2.1 fix - prevent both files)
-        if (letterFile) {
-          letterFile = null;
-          if (letterText) {
-            letterText.textContent = 'Upload Letter';
+        if (file) {
+          // If letter file is already selected, clear it (Bug 2.1 fix - prevent both files)
+          if (letterFile) {
+            letterFile = null;
+            if (letterText) {
+              letterText.textContent = 'Upload Letter';
+            }
+            const letterInput = document.getElementById('letter-upload');
+            if (letterInput) {
+              letterInput.value = '';
+            }
           }
-          const letterInput = document.getElementById('letter-upload');
-          if (letterInput) {
-            letterInput.value = '';
-          }
-        }
-        
-        // Validate file
-        const validationResult = await window.Validation.validateFile(file, {
-          maxSize: 10 * 1024 * 1024, // 10MB
-          allowedTypes: window.Validation.ALLOWED_AUDIO_TYPES,
-          checkMimeType: true
-        });
+          
+          // Validate file
+          const validationResult = await window.Validation.validateFile(file, {
+            maxSize: 10 * 1024 * 1024, // 10MB
+            allowedTypes: window.Validation.ALLOWED_AUDIO_TYPES,
+            checkMimeType: true
+          });
 
-        if (!validationResult.success) {
-          // Use new validation error handling system
-          window.Validation.handleValidationError(
-            { error: validationResult.error },
-            'audio file upload'
-          );
-          e.target.value = ''; // Clear the input
+          if (!validationResult.success) {
+            // Use new validation error handling system
+            window.Validation.handleValidationError(
+              { error: validationResult.error },
+              'audio file upload'
+            );
+            e.target.value = ''; // Clear the input
+            audioFile = null;
+            if (audioText) {
+              audioText.textContent = 'Upload Audio';
+            }
+          } else {
+            audioFile = file;
+            if (audioText) {
+              audioText.textContent = file.name;
+            }
+            window.showToast(`Audio file uploaded: ${file.name}`, 'success', 3000);
+          }
+        } else {
           audioFile = null;
           if (audioText) {
             audioText.textContent = 'Upload Audio';
           }
-        } else {
-          audioFile = file;
-          if (audioText) {
-            audioText.textContent = file.name;
-          }
-          window.showToast(`Audio file uploaded: ${file.name}`, 'success', 3000);
         }
-      } else {
-        audioFile = null;
-        if (audioText) {
-          audioText.textContent = 'Upload Audio';
-        }
-      }
 
-      updateFilesState();
+        updateFilesState();
+      } finally {
+        fileSelectionLock = false;
+      }
     });
   }
 

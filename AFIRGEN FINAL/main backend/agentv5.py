@@ -140,7 +140,7 @@ CFG = {
     "allowed_audio": {"audio/wav", "audio/mpeg", "audio/mp3"},
     "allowed_extensions": {".jpg", ".jpeg", ".png", ".wav", ".mp3", ".mpeg"},
     "auth_key": get_secret("FIR_AUTH_KEY", required=True),
-    "api_key": get_secret("API_KEY", required=True),  # API key for endpoint authentication
+    "api_key": get_secret("API_KEY", required=True),  # CRITICAL FIX: API key required, no fallback
     "model_timeouts": {
         "summary": 60.0,  # FIX: Increased timeouts
         "ocr": 120.0,
@@ -343,9 +343,10 @@ Date: {date}
 
 # ------------------------------------------------------------- PERSISTENT SESSION MANAGER
 class PersistentSessionManager:
-    """FIX: Session persistence using SQLite"""
+    """FIX: Session persistence using SQLite with thread-safe operations"""
     def __init__(self, db_path: str):
         self.db_path = db_path
+        self._lock = threading.Lock()  # CRITICAL FIX: Thread-safe operations
         self._init_db()
         self._cleanup_interval = 300  # 5 minutes
         self._last_cleanup = datetime.now()
@@ -373,54 +374,57 @@ class PersistentSessionManager:
     
     def create_session(self, session_id: str, initial_state: Dict) -> None:
         now = datetime.now().isoformat()
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                "INSERT OR REPLACE INTO sessions VALUES (?, ?, ?, ?, ?, ?)",
-                (session_id, json.dumps(initial_state, cls=DateTimeEncoder), 
-                 SessionStatus.PROCESSING, now, now, "[]")
-            )
+        with self._lock:  # CRITICAL FIX: Thread-safe session creation
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO sessions VALUES (?, ?, ?, ?, ?, ?)",
+                    (session_id, json.dumps(initial_state, cls=DateTimeEncoder), 
+                     SessionStatus.PROCESSING, now, now, "[]")
+                )
         self._cleanup_old_sessions()
     
     def get_session(self, session_id: str) -> Optional[Dict]:
         import time
         
-        # PERFORMANCE: Check cache first
-        if session_id in self._session_cache:
-            cached_time, cached_session = self._session_cache[session_id]
-            if time.time() - cached_time < self._cache_ttl:
-                return cached_session
+        # PERFORMANCE: Check cache first (thread-safe)
+        with self._lock:
+            if session_id in self._session_cache:
+                cached_time, cached_session = self._session_cache[session_id]
+                if time.time() - cached_time < self._cache_ttl:
+                    return cached_session
         
         self._cleanup_old_sessions()
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute(
-                "SELECT * FROM sessions WHERE session_id = ?", (session_id,)
-            )
-            row = cursor.fetchone()
-            if not row:
-                # Remove from cache if exists
-                self._session_cache.pop(session_id, None)
-                return None
-            
-            # Update last activity
-            now = datetime.now().isoformat()
-            conn.execute(
-                "UPDATE sessions SET last_activity = ? WHERE session_id = ?",
-                (now, session_id)
-            )
-            
-            session_data = {
-                "session_id": row[0],
-                "state": json.loads(row[1]),
-                "status": row[2],
-                "created_at": datetime.fromisoformat(row[3]),
-                "last_activity": datetime.fromisoformat(row[4]),
-                "validation_history": json.loads(row[5])
-            }
-            
-            # PERFORMANCE: Cache the result
-            self._session_cache[session_id] = (time.time(), session_data)
-            
-            return session_data
+        with self._lock:  # CRITICAL FIX: Thread-safe session retrieval
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute(
+                    "SELECT * FROM sessions WHERE session_id = ?", (session_id,)
+                )
+                row = cursor.fetchone()
+                if not row:
+                    # Remove from cache if exists
+                    self._session_cache.pop(session_id, None)
+                    return None
+                
+                # Update last activity
+                now = datetime.now().isoformat()
+                conn.execute(
+                    "UPDATE sessions SET last_activity = ? WHERE session_id = ?",
+                    (now, session_id)
+                )
+                
+                session_data = {
+                    "session_id": row[0],
+                    "state": json.loads(row[1]),
+                    "status": row[2],
+                    "created_at": datetime.fromisoformat(row[3]),
+                    "last_activity": datetime.fromisoformat(row[4]),
+                    "validation_history": json.loads(row[5])
+                }
+                
+                # PERFORMANCE: Cache the result
+                self._session_cache[session_id] = (time.time(), session_data)
+                
+                return session_data
     
     def update_session(self, session_id: str, updates: Dict) -> bool:
         session = self.get_session(session_id)
@@ -430,28 +434,30 @@ class PersistentSessionManager:
         session["state"].update(updates)
         now = datetime.now().isoformat()
         
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                "UPDATE sessions SET state = ?, last_activity = ? WHERE session_id = ?",
-                (json.dumps(session["state"], cls=DateTimeEncoder), now, session_id)
-            )
-        
-        # PERFORMANCE: Invalidate cache
-        self._session_cache.pop(session_id, None)
+        with self._lock:  # CRITICAL FIX: Thread-safe session update
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    "UPDATE sessions SET state = ?, last_activity = ? WHERE session_id = ?",
+                    (json.dumps(session["state"], cls=DateTimeEncoder), now, session_id)
+                )
+            
+            # PERFORMANCE: Invalidate cache
+            self._session_cache.pop(session_id, None)
         
         return True
     
     def set_session_status(self, session_id: str, status: SessionStatus) -> bool:
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute(
-                "UPDATE sessions SET status = ?, last_activity = ? WHERE session_id = ?",
-                (status, datetime.now().isoformat(), session_id)
-            )
-            success = cursor.rowcount > 0
-        
-        # PERFORMANCE: Invalidate cache
-        if success:
-            self._session_cache.pop(session_id, None)
+        with self._lock:  # CRITICAL FIX: Thread-safe status update
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute(
+                    "UPDATE sessions SET status = ?, last_activity = ? WHERE session_id = ?",
+                    (status, datetime.now().isoformat(), session_id)
+                )
+                success = cursor.rowcount > 0
+            
+            # PERFORMANCE: Invalidate cache
+            if success:
+                self._session_cache.pop(session_id, None)
         
         return success
     
@@ -467,14 +473,15 @@ class PersistentSessionManager:
             "timestamp": datetime.now().isoformat()
         })
         
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                "UPDATE sessions SET validation_history = ? WHERE session_id = ?",
-                (json.dumps(history, cls=DateTimeEncoder), session_id)
-            )
-        
-        # PERFORMANCE: Invalidate cache
-        self._session_cache.pop(session_id, None)
+        with self._lock:  # CRITICAL FIX: Thread-safe validation step addition
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    "UPDATE sessions SET validation_history = ? WHERE session_id = ?",
+                    (json.dumps(history, cls=DateTimeEncoder), session_id)
+                )
+            
+            # PERFORMANCE: Invalidate cache
+            self._session_cache.pop(session_id, None)
         
         return True
     
@@ -576,6 +583,7 @@ class ModelPool:
     _health_check_ttl = 30  # Cache TTL in seconds
     _http_client: Optional[httpx.AsyncClient] = None  # CONCURRENCY: Shared HTTP client with connection pooling
     _model_semaphore: Optional[asyncio.Semaphore] = None  # CONCURRENCY: Limit concurrent model calls
+    _max_cache_size = 100  # HIGH PRIORITY FIX: Bounded cache to prevent memory leaks
     
     def __init__(self, model_server_url: str = "http://localhost:8001", asr_ocr_server_url: str = "http://localhost:8002"):
         self.MODEL_SERVER_URL = model_server_url
@@ -658,8 +666,15 @@ class ModelPool:
             is_healthy = status in ["healthy", "degraded"]
             result = (is_healthy, message)
             
-            # Cache result
+            # Cache result with bounded cache
             self._health_check_cache[cache_key] = (time.time(), result)
+            
+            # HIGH PRIORITY FIX: Cleanup old cache entries if cache is too large
+            if len(self._health_check_cache) > self._max_cache_size:
+                # Remove oldest entries
+                sorted_cache = sorted(self._health_check_cache.items(), key=lambda x: x[1][0])
+                for old_key, _ in sorted_cache[:len(self._health_check_cache) - self._max_cache_size]:
+                    del self._health_check_cache[old_key]
             
             return result
             
