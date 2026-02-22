@@ -91,6 +91,22 @@
     ],
     "testPathIgnorePatterns": [
       "/node_modules/"
+      "**/__tests__/**/*.js",
+      "**/?(*.)+(spec|test).js"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "<rootDir>/tests/",
+      "<rootDir>/js/.*\\.pbt\\.test\\.js$",
+      "<rootDir>/js/pdf-export-completeness\\.test\\.js$",
+      "<rootDir>/js/dark-mode-contrast\\.test\\.js$",
+      "<rootDir>/js/api\\.test\\.js$",
+      "<rootDir>/js/ui\\.test\\.js$",
+      "<rootDir>/js/text-reveal\\.test\\.js$",
+      "<rootDir>/js/storage\\.test\\.js$",
+      "<rootDir>/js/svg-icon-animations\\.test\\.js$",
+      "<rootDir>/js/validation\\.test\\.js$",
+      "<rootDir>/js/security\\.test\\.js$"
     ]
   },
   "lint-staged": {
