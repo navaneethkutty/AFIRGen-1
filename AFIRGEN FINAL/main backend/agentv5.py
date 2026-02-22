@@ -210,6 +210,8 @@ def validate_uploaded_file(file_path: Path, content_type: str) -> bool:
                 raise HTTPException(status_code=415, detail=f"Invalid image MIME type: {detected_mime}")
             elif content_type.startswith("audio/") and detected_mime not in CFG["allowed_audio"]:
                 raise HTTPException(status_code=415, detail=f"Invalid audio MIME type: {detected_mime}")
+        except HTTPException:
+            raise
         except Exception as e:
             log.warning(f"MIME detection failed: {e}")
     else:
