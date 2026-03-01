@@ -1978,10 +1978,21 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 # API Authentication middleware
 class APIAuthMiddleware(BaseHTTPMiddleware):
-    """Middleware to enforce API key authentication on all endpoints except health check"""
+    """
+    Middleware to enforce API key authentication on all endpoints except public ones.
     
-    # Public endpoints that don't require authentication
-    PUBLIC_ENDPOINTS = {"/health", "/docs", "/redoc", "/openapi.json"}
+    SECURITY FIX (BUG-0008): /authenticate endpoint added to public endpoints
+    to avoid circular authentication (endpoint has its own auth_key validation).
+    """
+    
+    # Public endpoints that don't require API key authentication
+    PUBLIC_ENDPOINTS = {
+        "/health",           # Health check
+        "/docs",             # API documentation
+        "/redoc",            # ReDoc documentation
+        "/openapi.json",     # OpenAPI schema
+        "/authenticate"      # FIX: Has its own auth_key validation
+    }
     
     async def dispatch(self, request: Request, call_next):
         # Always allow CORS preflight requests
@@ -2002,6 +2013,14 @@ class APIAuthMiddleware(BaseHTTPMiddleware):
         # Validate API key exists in config
         if not CFG.get("api_key"):
             log.error("API authentication attempted but API_KEY not configured")
+            
+            # Log security event
+            log_security_event(
+                event_type="api_key_not_configured",
+                severity="critical",
+                path=request.url.path
+            )
+            
             raise HTTPException(
                 status_code=500,
                 detail="API authentication not properly configured"
@@ -2009,7 +2028,23 @@ class APIAuthMiddleware(BaseHTTPMiddleware):
         
         # Validate API key
         if not api_key:
-            log.warning(f"Missing API key for {request.url.path} from {request.client.host if request.client else 'unknown'}")
+            log.warning(
+                f"Missing API key for {request.url.path}",
+                extra={
+                    "path": request.url.path,
+                    "client_ip": request.client.host if request.client else "unknown",
+                    "method": request.method
+                }
+            )
+            
+            # Log security event
+            log_security_event(
+                event_type="missing_api_key",
+                severity="warning",
+                path=request.url.path,
+                client_ip=request.client.host if request.client else "unknown"
+            )
+            
             raise HTTPException(
                 status_code=401,
                 detail="API key required. Include X-API-Key header or Authorization: Bearer <key>"
@@ -2018,7 +2053,23 @@ class APIAuthMiddleware(BaseHTTPMiddleware):
         # Constant-time comparison to prevent timing attacks
         import hmac
         if not hmac.compare_digest(api_key, CFG["api_key"]):
-            log.warning(f"Invalid API key attempt for {request.url.path} from {request.client.host if request.client else 'unknown'}")
+            log.warning(
+                f"Invalid API key attempt for {request.url.path}",
+                extra={
+                    "path": request.url.path,
+                    "client_ip": request.client.host if request.client else "unknown",
+                    "method": request.method
+                }
+            )
+            
+            # Log security event
+            log_security_event(
+                event_type="invalid_api_key",
+                severity="high",
+                path=request.url.path,
+                client_ip=request.client.host if request.client else "unknown"
+            )
+            
             raise HTTPException(
                 status_code=401,
                 detail="Invalid API key"

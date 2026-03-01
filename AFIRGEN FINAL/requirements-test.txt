@@ -1,0 +1,50 @@
+# AFIRGen Test Dependencies
+# Install with: pip install -r requirements-test.txt
+
+# Core Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+pytest-mock>=3.11.1
+
+# HTTP Testing
+httpx>=0.24.1
+requests>=2.31.0
+
+# AWS Testing
+boto3>=1.28.0
+botocore>=1.31.0
+moto>=4.1.0  # AWS service mocking
+
+# Database Testing
+asyncpg>=0.28.0
+aiomysql>=0.2.0
+pymysql>=1.1.0
+
+# Vector Database Testing
+opensearch-py>=2.3.0
+chromadb>=0.4.0
+
+# FastAPI Testing
+fastapi>=0.100.0
+starlette>=0.27.0
+uvicorn>=0.23.0
+
+# Utilities
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+python-multipart>=0.0.6
+
+# Monitoring/Logging
+prometheus-client>=0.17.0
+
+# Security
+python-jose>=3.3.0
+passlib>=1.7.4
+bcrypt>=4.0.1
+
+# Development
+black>=23.7.0
+flake8>=6.1.0
+mypy>=1.5.0
+isort>=5.12.0

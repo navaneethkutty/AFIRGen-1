@@ -273,17 +273,43 @@ def test_dashboard_json_structure():
 
 
 def test_integration_with_metrics_module():
-    """Test that dashboards reference metrics from cloudwatch_metrics.py"""
+    """
+    Test that dashboards reference metrics from cloudwatch_metrics.py
+    
+    FIX (BUG-0009): Corrected path to infrastructure/cloudwatch_metrics.py
+    """
     print("\n" + "="*60)
     print("TEST: Integration with Metrics Module")
     print("="*60)
     
+    # FIX: Correct path to metrics module
+    metrics_path = "AFIRGEN FINAL/main backend/infrastructure/cloudwatch_metrics.py"
+    
+    # Check if file exists at correct path
+    if not os.path.exists(metrics_path):
+        print(f"❌ Metrics module not found at: {metrics_path}")
+        # Try alternative path for backwards compatibility
+        alt_path = "AFIRGEN FINAL/main backend/cloudwatch_metrics.py"
+        if os.path.exists(alt_path):
+            print(f"⚠️  Found at alternative path: {alt_path}")
+            metrics_path = alt_path
+        else:
+            print("❌ Metrics module not found at any expected path")
+            return False
+    
     # Read metrics module
-    with open("AFIRGEN FINAL/main backend/cloudwatch_metrics.py", "r") as f:
+    with open(metrics_path, "r") as f:
         metrics_content = f.read()
     
+    print(f"✅ Metrics module found at: {metrics_path}")
+    
     # Read dashboard config
-    with open("AFIRGEN FINAL/terraform/cloudwatch_dashboards.tf", "r") as f:
+    dashboard_path = "AFIRGEN FINAL/terraform/cloudwatch_dashboards.tf"
+    if not os.path.exists(dashboard_path):
+        print(f"❌ Dashboard config not found at: {dashboard_path}")
+        return False
+    
+    with open(dashboard_path, "r") as f:
         dashboard_content = f.read()
     
     # Extract metric names from convenience functions
