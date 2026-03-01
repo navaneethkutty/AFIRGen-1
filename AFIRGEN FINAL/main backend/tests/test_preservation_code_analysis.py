@@ -26,6 +26,20 @@ backend_dir = Path(__file__).parent.parent
 agentv5_path = backend_dir / "agentv5.py"
 
 
+def _get_function_source(file_content: str, function_name: str) -> str:
+    """Return full source for a top-level function using AST line ranges."""
+    tree = ast.parse(file_content)
+    lines = file_content.splitlines()
+
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name == function_name:
+            start = node.lineno - 1
+            end = node.end_lineno
+            return "\n".join(lines[start:end])
+
+    raise AssertionError(f"Function '{function_name}' not found")
+
+
 # ============================================================================
 # Test 12.1: Audio File Processing Preservation
 # **Validates: Requirements 3.1, 3.5**
@@ -337,24 +351,9 @@ def test_preservation_fir_generation_function():
     """
     with open(agentv5_path, 'r', encoding='utf-8') as f:
         content = f.read()
-        lines = content.split('\n')
-    
-    # Verify get_fir_data function exists
-    get_fir_data_found = False
-    function_start_line = None
-    
-    for i, line in enumerate(lines):
-        if 'def get_fir_data' in line:
-            get_fir_data_found = True
-            function_start_line = i
-            break
-    
-    assert get_fir_data_found, \
-        "get_fir_data function should exist"
-    
-    # Verify function returns a dictionary with FIR data
-    # Look for key FIR fields in the function
-    function_body = '\n'.join(lines[function_start_line:function_start_line + 100])
+
+    # Verify get_fir_data function exists and inspect full function source.
+    function_body = _get_function_source(content, "get_fir_data")
     
     # Check for FIR data structure (fir_data dict, fir_number, etc.)
     assert 'fir_data' in function_body or 'fir_number' in function_body, \

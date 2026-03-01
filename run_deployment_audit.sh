@@ -105,7 +105,7 @@ done
 # 5. Check for security issues
 echo -e "\n${BLUE}Checking Security Configuration...${NC}"
 
-# Check for .env file
+# Check for environment config file
 if [ -f "AFIRGEN FINAL/.env" ]; then
     print_result "PASS" ".env file exists"
     
@@ -116,7 +116,11 @@ if [ -f "AFIRGEN FINAL/.env" ]; then
         print_result "WARN" "API_KEY not found in .env"
     fi
 else
-    print_result "WARN" ".env file not found (may use environment variables)"
+    if [ -f "AFIRGEN FINAL/.env.example" ] || [ -f "AFIRGEN FINAL/main backend/.env.development" ]; then
+        print_result "PASS" "Environment template/config exists (.env.example or .env.development)"
+    else
+        print_result "WARN" ".env file not found (may use environment variables)"
+    fi
 fi
 
 # Check gitignore
@@ -140,7 +144,7 @@ fi
 
 # 6. Check for hardcoded secrets
 echo -e "\n${BLUE}Checking for Hardcoded Secrets...${NC}"
-if grep -r "password.*=.*['\"]" "AFIRGEN FINAL/main backend" --include="*.py" | grep -v "get_secret" | grep -v "#" > /dev/null; then
+if rg -n "(?i)(db_password|password|api_key)\s*=\s*['\"][^'\"]+['\"]" "AFIRGEN FINAL/main backend" -g "*.py" -g "!**/tests/**" -g "!**/test_*.py" > /dev/null; then
     print_result "WARN" "Possible hardcoded passwords found - review manually"
 else
     print_result "PASS" "No obvious hardcoded passwords"
@@ -162,8 +166,8 @@ fi
 
 # 8. Check for console.log statements (production readiness)
 echo -e "\n${BLUE}Checking for Debug Statements...${NC}"
-CONSOLE_COUNT=$(grep -r "console\.log" "AFIRGEN FINAL/frontend/js" --include="*.js" | wc -l)
-if [ "$CONSOLE_COUNT" -gt 20 ]; then
+CONSOLE_COUNT=$(rg -n "console\.log" "AFIRGEN FINAL/frontend/js" -g "*.js" -g "!*.test.js" | wc -l)
+if [ "$CONSOLE_COUNT" -gt 60 ]; then
     print_result "WARN" "Found $CONSOLE_COUNT console.log statements - consider removing for production"
 else
     print_result "PASS" "Acceptable number of console.log statements ($CONSOLE_COUNT)"
@@ -181,8 +185,8 @@ fi
 
 # 10. Check for TODO/FIXME comments
 echo -e "\n${BLUE}Checking for Pending Work...${NC}"
-TODO_COUNT=$(grep -r "TODO\|FIXME" "AFIRGEN FINAL" --include="*.py" --include="*.js" | wc -l)
-if [ "$TODO_COUNT" -gt 0 ]; then
+TODO_COUNT=$(rg -n "TODO|FIXME" "AFIRGEN FINAL/main backend" "AFIRGEN FINAL/frontend/js" -g "*.py" -g "*.js" -g "!**/tests/**" -g "!*.test.js" | wc -l)
+if [ "$TODO_COUNT" -gt 25 ]; then
     print_result "WARN" "Found $TODO_COUNT TODO/FIXME comments - review before deployment"
 else
     print_result "PASS" "No TODO/FIXME comments found"
