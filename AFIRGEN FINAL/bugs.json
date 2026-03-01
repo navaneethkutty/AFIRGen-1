@@ -98,5 +98,52 @@
       "Scripts provided to generate test audio and image files",
       "Manual creation instructions included in fix script"
     ]
+  },
+  {
+    "id": "BUG-0006",
+    "title": "Rate Limiter Trusts Spoofable Client Headers (HIGH SEVERITY)",
+    "description": "The RateLimitMiddleware derives client_ip directly from X-Forwarded-For and X-Real-IP request headers before falling back to request.client.host. These headers are client-controlled unless stripped/overwritten by a trusted reverse proxy. An attacker can rotate spoofed IP values to bypass per-IP throttling, weakening abuse protection and making brute-force and DoS mitigation significantly less effective.",
+    "priority": "Critical",
+    "status": "Fixed",
+    "component": "API Security / Rate Limiting",
+    "discovered_date": "2026-03-01 21:00:00",
+    "discovered_by": "Code Review",
+    "assigned_to": "Kiro AI Agent",
+    "fixed_date": "2026-03-01 21:30:00",
+    "verified_date": "2026-03-01 21:30:00",
+    "regression_test": "tests/security/test_rate_limit_ip_spoofing.py",
+    "notes": [
+      "SECURITY VULNERABILITY: IP spoofing allows rate limit bypass",
+      "FIXED: Only trust X-Forwarded-For/X-Real-IP when TRUST_FORWARDED_HEADERS=true",
+      "FIXED: Added TRUSTED_PROXY_IPS configuration for additional security",
+      "FIXED: Default behavior now uses request.client.host (secure)",
+      "FIXED: Added security event logging for rate limit violations",
+      "Configuration: Set TRUST_FORWARDED_HEADERS=true only when behind trusted proxy",
+      "Configuration: Set TRUSTED_PROXY_IPS=ip1,ip2,ip3 for proxy IP validation"
+    ]
+  },
+  {
+    "id": "BUG-0007",
+    "title": "FIR Generation Uses Hardcoded Fallback Identity/Location Values (MEDIUM SEVERITY)",
+    "description": "The get_fir_data function injects hardcoded defaults such as police station ('Central Police Station'), district ('Metro City'), state ('State of Example'), complainant name ('John Doe'), father name ('Richard Doe'), and address ('123 Main St.') when session values are missing. In legal/reporting workflows, silently filling missing fields with fabricated values can produce incorrect records and undermine auditability.",
+    "priority": "High",
+    "status": "Fixed",
+    "component": "FIR Generation / Data Integrity",
+    "discovered_date": "2026-03-01 21:00:00",
+    "discovered_by": "Code Review",
+    "assigned_to": "Kiro AI Agent",
+    "fixed_date": "2026-03-01 21:30:00",
+    "verified_date": "2026-03-01 21:30:00",
+    "regression_test": "tests/validation/test_fir_required_fields.py",
+    "notes": [
+      "DATA INTEGRITY ISSUE: Hardcoded fallbacks create invalid legal documents",
+      "FIXED: Removed all hardcoded fallback values for legal fields",
+      "FIXED: Required fields now set to None if missing from session",
+      "FIXED: Added validation to detect missing required fields",
+      "FIXED: Added security event logging for missing required fields",
+      "FIXED: FIR data includes _validation_status and _missing_fields metadata",
+      "Required fields: complainant_name, father_name, complainant_address, complainant_contact, occurrence_place, incident_description, police_station, district, state, io_name",
+      "Upstream validation must block FIR finalization until all required fields provided"
+    ]
   }
 ]

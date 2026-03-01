@@ -243,58 +243,105 @@ def validate_uploaded_file(file_path: Path, content_type: str) -> bool:
     return True
 
 def get_fir_data(session_state: dict, fir_number: str) -> dict:
+    """
+    Construct FIR data from session state.
+    
+    SECURITY FIX (BUG-0007): Do NOT use hardcoded fallback values for legal documents.
+    All required fields must be explicitly provided or validation should fail.
+    Missing required fields will be set to None and must be validated before FIR finalization.
+    """
     from datetime import datetime
 
     now = datetime.now()
     present_date = now.strftime("%d %B %Y")
     present_time = now.strftime("%H:%M:%S")
 
-    # Construct FIR data dict using available session_state and defaults
+    # SECURITY FIX: Validate required fields are present
+    required_fields = [
+        'complainant_name', 'father_name', 'complainant_address', 
+        'complainant_contact', 'occurrence_place', 'incident_description'
+    ]
+    
+    missing_fields = [field for field in required_fields if not session_state.get(field)]
+    
+    if missing_fields:
+        log.warning(
+            f"FIR generation attempted with missing required fields: {missing_fields}",
+            extra={
+                "fir_number": fir_number,
+                "missing_fields": missing_fields,
+                "session_id": session_state.get('session_id', 'unknown')
+            }
+        )
+        # Log security event for audit trail
+        log_security_event(
+            event_type="fir_missing_required_fields",
+            fir_number=fir_number,
+            missing_fields=missing_fields,
+            severity="high"
+        )
+
+    # Construct FIR data dict - NO HARDCODED FALLBACKS for legal fields
     fir_data = {
-        'fir_number': fir_number,  # Use the passed fir_number parameter
-        'police_station': 'Central Police Station',  # hardcoded or derived from config/session
-        'district': 'Metro City',
-        'state': 'State of Example',
+        'fir_number': fir_number,
+        
+        # Police station details - use session or None (must be configured)
+        'police_station': session_state.get('police_station'),  # REQUIRED
+        'district': session_state.get('district'),  # REQUIRED
+        'state': session_state.get('state'),  # REQUIRED
         'year': present_date.split()[-1],
         'date': present_date,
 
-        'Acts': session_state.get('Acts', ['IPC 379 (Theft)', 'IPC 34 (Common Intention)', 'IPC 506 (Criminal Intimidation)']),
-        'Sections': session_state.get('Sections', ['IPC 379', 'IPC 34', 'IPC 506']),
+        # Legal provisions
+        'Acts': session_state.get('Acts', []),
+        'Sections': session_state.get('Sections', []),
 
-        'Occurrence of Offence': '',
+        # Occurrence details
+        'Occurrence of Offence': session_state.get('occurrence_of_offence', ''),
         'Date from': session_state.get('date_from', present_date),
         'Date to': session_state.get('date_to', present_date),
         'Time from': session_state.get('time_from', ''),
         'Time to': session_state.get('time_to', ''),
         'Information recieved': f"{present_date} at {present_time}",
 
-        'Place of Occurrence': session_state.get('occurrence_place', 'Central Park, Metro City'),
-        'Address of Occurrence': session_state.get('occurrence_address', 'Near the fountain area, Central Park, Metro City'),
+        # Place of occurrence - REQUIRED
+        'Place of Occurrence': session_state.get('occurrence_place'),  # REQUIRED
+        'Address of Occurrence': session_state.get('occurrence_address', session_state.get('occurrence_place')),
 
-        'complainant_name': session_state.get('complainant_name', 'John Doe'),
-        'dateofbirth': session_state.get('date_of_birth', '01 January 1990'),
-        'Nationality': session_state.get('nationality', 'Indian'),
-        'father_name/husband_name': session_state.get('father_name', 'Richard Doe'),
-        'complainant_address': session_state.get('complainant_address', '123 Main St.'),
-        'complainant_contact': session_state.get('complainant_contact', '9876543210'),
+        # Complainant details - REQUIRED
+        'complainant_name': session_state.get('complainant_name'),  # REQUIRED
+        'dateofbirth': session_state.get('date_of_birth', ''),
+        'Nationality': session_state.get('nationality', 'Indian'),  # Default to Indian for Indian legal system
+        'father_name/husband_name': session_state.get('father_name'),  # REQUIRED
+        'complainant_address': session_state.get('complainant_address'),  # REQUIRED
+        'complainant_contact': session_state.get('complainant_contact'),  # REQUIRED
         'passport_number': session_state.get('passport_number', ''),
         'occupation': session_state.get('occupation', ''),
 
+        # Suspect details
         'Suspect_details': session_state.get('suspect_details', 'Unknown'),
 
+        # Reporting details
         'reasons_for_delayed_reporting': session_state.get('delay_reason', 'No delay reported'),
 
-        'incident_description': session_state.get('incident_description', ''),
+        # Incident details - REQUIRED
+        'incident_description': session_state.get('incident_description'),  # REQUIRED
         'summary': session_state.get('summary', ''),
-        'action_taken': session_state.get('action_taken', ''),
+        'action_taken': session_state.get('action_taken', 'Preliminary investigation initiated'),
 
-        'io_name': session_state.get('io_name', 'Inspector Rajesh Kumar'),
+        # Investigation officer details - use session or None
+        'io_name': session_state.get('io_name'),  # REQUIRED
         'io_rank': session_state.get('io_rank', 'Inspector'),
         'witnesses': session_state.get('witnesses', ''),
         'date_of_despatch': present_date,
 
-        'investigation_status': session_state.get('investigation_status', 'Preliminary investigation started'),
+        'investigation_status': session_state.get('investigation_status', 'Under investigation'),
     }
+    
+    # SECURITY FIX: Add validation metadata
+    fir_data['_validation_status'] = 'incomplete' if missing_fields else 'complete'
+    fir_data['_missing_fields'] = missing_fields
+    fir_data['_generated_at'] = now.isoformat()
 
     return fir_data
 
@@ -1810,13 +1857,20 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
+    """
+    Rate limiting middleware with secure IP detection.
+    
+    SECURITY FIX (BUG-0006): Only trust X-Forwarded-For/X-Real-IP headers when behind
+    a trusted reverse proxy. Otherwise, use request.client.host to prevent IP spoofing.
+    """
+    
+    # Configure trusted proxy IPs (set via environment variable)
+    TRUSTED_PROXIES = set(os.getenv("TRUSTED_PROXY_IPS", "").split(",")) if os.getenv("TRUSTED_PROXY_IPS") else set()
+    TRUST_FORWARDED_HEADERS = os.getenv("TRUST_FORWARDED_HEADERS", "false").lower() == "true"
+    
     async def dispatch(self, request: Request, call_next):
-        # Get client IP (check X-Forwarded-For for proxied requests)
-        client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
-        if not client_ip:
-            client_ip = request.headers.get("X-Real-IP", "")
-        if not client_ip:
-            client_ip = request.client.host if request.client else "unknown"
+        # SECURITY FIX: Secure client IP detection
+        client_ip = self._get_client_ip(request)
         
         # Skip rate limiting for health check and docs
         if request.url.path in ["/health", "/docs", "/redoc", "/openapi.json"]:
@@ -1825,6 +1879,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Check rate limit
         if not rate_limiter.is_allowed(client_ip):
             log.warning(f"Rate limit exceeded for IP: {client_ip} on path: {request.url.path}")
+            
+            # Log security event for rate limit violation
+            log_security_event(
+                event_type="rate_limit_exceeded",
+                client_ip=client_ip,
+                path=request.url.path,
+                severity="warning"
+            )
             
             # Record rate limit event
             record_rate_limit_event(client_ip, blocked=True)
@@ -1852,6 +1914,47 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         response.headers["X-RateLimit-Window"] = str(rate_limiter.window_seconds)
         
         return response
+    
+    def _get_client_ip(self, request: Request) -> str:
+        """
+        Securely extract client IP address.
+        
+        SECURITY: Only trust X-Forwarded-For/X-Real-IP headers when:
+        1. TRUST_FORWARDED_HEADERS environment variable is set to "true"
+        2. Request comes from a trusted proxy IP (optional additional check)
+        
+        Otherwise, use request.client.host to prevent IP spoofing attacks.
+        """
+        # Default to direct connection IP
+        direct_ip = request.client.host if request.client else "unknown"
+        
+        # If not configured to trust forwarded headers, use direct IP
+        if not self.TRUST_FORWARDED_HEADERS:
+            log.debug(f"Using direct IP (forwarded headers not trusted): {direct_ip}")
+            return direct_ip
+        
+        # If trusted proxies are configured, verify the request comes from a trusted proxy
+        if self.TRUSTED_PROXIES and direct_ip not in self.TRUSTED_PROXIES:
+            log.warning(
+                f"Request from untrusted proxy {direct_ip}, ignoring forwarded headers",
+                extra={"direct_ip": direct_ip, "trusted_proxies": list(self.TRUSTED_PROXIES)}
+            )
+            return direct_ip
+        
+        # Trust forwarded headers (only when explicitly configured)
+        forwarded_for = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+        if forwarded_for:
+            log.debug(f"Using X-Forwarded-For IP: {forwarded_for}")
+            return forwarded_for
+        
+        real_ip = request.headers.get("X-Real-IP", "").strip()
+        if real_ip:
+            log.debug(f"Using X-Real-IP: {real_ip}")
+            return real_ip
+        
+        # Fallback to direct IP
+        log.debug(f"No forwarded headers found, using direct IP: {direct_ip}")
+        return direct_ip
 
 app.add_middleware(RateLimitMiddleware)
 
