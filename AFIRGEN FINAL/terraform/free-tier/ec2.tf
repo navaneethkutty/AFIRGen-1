@@ -110,16 +110,16 @@ resource "aws_iam_instance_profile" "ec2" {
 # ============================================================================
 resource "aws_instance" "main" {
   ami           = var.ami_id
-  instance_type = "t2.micro"  # Free tier: 750 hours/month, 1 vCPU, 1GB RAM
+  instance_type = "g5.2xlarge"  # GPU: NVIDIA A10G, 24GB VRAM, 32GB RAM - $1.21/hour
 
   subnet_id                   = aws_subnet.public.id
   vpc_security_group_ids      = [aws_security_group.ec2.id]
   associate_public_ip_address = true
   iam_instance_profile        = aws_iam_instance_profile.ec2.name
 
-  # 30GB gp3 EBS volume (free tier eligible)
+  # 200GB gp3 EBS volume for models and data
   root_block_device {
-    volume_size           = 30
+    volume_size           = 200
     volume_type           = "gp3"
     delete_on_termination = true
     encrypted             = true
@@ -144,6 +144,14 @@ resource "aws_instance" "main" {
 
   # Enable detailed monitoring (free tier: 10 metrics)
   monitoring = true
+
+  # Metadata options (required for some AMIs)
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "optional"
+    http_put_response_hop_limit = 1
+    instance_metadata_tags      = "disabled"
+  }
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-ec2"

@@ -4,11 +4,6 @@ variable "aws_region" {
   description = "AWS region for deployment"
   type        = string
   default     = "us-east-1"
-  
-  validation {
-    condition     = can(regex("^us-east-1$", var.aws_region))
-    error_message = "Free tier deployment is optimized for us-east-1 region."
-  }
 }
 
 variable "project_name" {

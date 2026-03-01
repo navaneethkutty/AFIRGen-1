@@ -40,7 +40,7 @@ resource "aws_db_parameter_group" "main" {
 
   parameter {
     name  = "innodb_buffer_pool_size"
-    value = "{DBInstanceClassMemory*1024*512/1024/1024/1024}"  # 512MB
+    value = "536870912"  # 512MB in bytes
   }
 
   # Enable slow query log for optimization
@@ -74,7 +74,7 @@ resource "aws_db_instance" "main" {
   # Instance Configuration
   identifier     = "${var.project_name}-${var.environment}-mysql"
   engine         = "mysql"
-  engine_version = "8.0.35"  # Latest stable MySQL 8.0
+  engine_version = "8.0.40"  # Available in ap-south-1
   instance_class = "db.t3.micro"  # Free Tier: 750 hours/month
 
   # Storage Configuration (Requirement 5.1)
@@ -98,7 +98,7 @@ resource "aws_db_instance" "main" {
   parameter_group_name = aws_db_parameter_group.main.name
 
   # Backup Configuration (Requirements 15.1, 15.2)
-  backup_retention_period = 7  # 7-day retention (Free Tier: up to 7 days)
+  backup_retention_period = 1  # 1-day retention (Free Tier limit)
   backup_window           = "03:00-04:00"  # UTC, low-traffic window
   maintenance_window      = "sun:04:00-sun:05:00"  # UTC, after backup
 

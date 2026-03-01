@@ -64,6 +64,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "frontend" {
     id     = "delete-old-versions"
     status = "Enabled"
 
+    filter {}
+
     noncurrent_version_expiration {
       noncurrent_days = 7
     }
@@ -92,7 +94,7 @@ resource "aws_s3_bucket" "models" {
   tags = {
     Name        = "AFIRGen ML Models"
     Purpose     = "ML model storage"
-    Requirement = "10.1, 3.3"
+    Requirement = "10.1-3.3"
   }
 }
 
@@ -161,6 +163,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "temp" {
     id     = "delete-after-1-day"
     status = "Enabled"
 
+    filter {}
+
     expiration {
       days = 1
     }
@@ -225,6 +229,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "backups" {
   rule {
     id     = "glacier-transition-and-expiration"
     status = "Enabled"
+
+    filter {}
 
     # Transition to Glacier after 30 days
     transition {
