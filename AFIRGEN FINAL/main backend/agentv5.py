@@ -99,6 +99,20 @@ from services.fir_service import FIRService
 # Import metrics collection
 from infrastructure.metrics import MetricsCollector
 
+# Import Bedrock services
+from config.settings import get_settings
+from services.fir_generation_service import FIRGenerationService
+from services.aws.transcribe_client import TranscribeClient
+from services.aws.textract_client import TextractClient
+from services.aws.bedrock_client import BedrockClient
+from services.aws.titan_embeddings_client import TitanEmbeddingsClient
+from services.vector_db.factory import VectorDBFactory
+from services.cache.ipc_cache import IPCCache
+from services.resilience.retry_handler import RetryHandler
+from services.resilience.circuit_breaker import CircuitBreaker as BedrockCircuitBreaker
+from services.monitoring.metrics_collector import MetricsCollector as BedrockMetricsCollector
+from services.monitoring.logger import get_structured_logger
+
 # Try to import python-magic, fallback to basic validation
 try:
     import magic
@@ -174,6 +188,13 @@ log.info("Main backend service starting", extra={
 
 # ------------------------------------------------------------- ENUMS & UTILS
 # ValidationStep is now imported from input_validation module
+
+# Global Bedrock services (initialized during startup if ENABLE_BEDROCK=true)
+_fir_generation_service: Optional['FIRGenerationService'] = None
+
+def get_fir_generation_service() -> Optional['FIRGenerationService']:
+    """Get the global FIR generation service instance."""
+    return _fir_generation_service
 
 class SessionStatus(str, Enum):
     PROCESSING = "processing"
@@ -971,16 +992,35 @@ KB = KB()
 
 # ------------------------------------------------------------- ENHANCED RAG WITH VALIDATION
 async def generate_summary_with_validation(session_id: str, transcript: str, user_input: Optional[str] = None) -> str:
-    pool = await ModelPool.get()
+    """
+    Generate summary with validation.
+    Routes to either GGUF or Bedrock implementation based on ENABLE_BEDROCK flag.
+    """
+    settings = get_settings()
     
     text_to_process = transcript
     if user_input:
         text_to_process = f"{transcript}\n\nAdditional user input: {user_input}"
     
-    summary = await asyncio.wait_for(
-        pool.two_line_summary(text_to_process),
-        timeout=CFG["model_timeouts"]["summary"]
-    )
+    if settings.enable_bedrock:
+        # Use Bedrock implementation
+        log.info(f"Session {session_id}: Generating summary using Bedrock")
+        fir_service = get_fir_generation_service()
+        
+        if not fir_service:
+            raise RuntimeError("Bedrock services not initialized")
+        
+        # Use Bedrock to generate formal narrative (similar to summary)
+        result = await fir_service.bedrock_client.generate_formal_narrative(text_to_process)
+        summary = result.narrative
+    else:
+        # Use GGUF implementation
+        log.info(f"Session {session_id}: Generating summary using GGUF")
+        pool = await ModelPool.get()
+        summary = await asyncio.wait_for(
+            pool.two_line_summary(text_to_process),
+            timeout=CFG["model_timeouts"]["summary"]
+        )
 
     session_manager.add_validation_step(session_id, ValidationStep.SUMMARY_REVIEW, {
         "summary": summary,
@@ -991,49 +1031,84 @@ async def generate_summary_with_validation(session_id: str, transcript: str, use
     return summary
 
 async def find_violations_with_validation(session_id: str, summary: str, user_input: Optional[str] = None) -> List[Dict[str, Any]]:
-    pool = await ModelPool.get()
+    """
+    Find legal violations with validation.
+    Routes to either GGUF or Bedrock implementation based on ENABLE_BEDROCK flag.
+    """
+    settings = get_settings()
     
     search_text = summary
     if user_input:
         search_text = f"{summary}\n\nAdditional context: {user_input}"
     
-    hits = await asyncio.wait_for(
-        asyncio.to_thread(KB.retrieve, search_text),
-        timeout=15.0  # FIX: Increased timeout
-    )
+    if settings.enable_bedrock:
+        # Use Bedrock implementation with vector search
+        log.info(f"Session {session_id}: Finding violations using Bedrock")
+        fir_service = get_fir_generation_service()
+        
+        if not fir_service:
+            raise RuntimeError("Bedrock services not initialized")
+        
+        # Generate embedding for search
+        query_embedding = await fir_service.titan_client.generate_embedding(search_text)
+        
+        # Search vector database
+        search_results = await fir_service.vector_db.similarity_search(
+            query_vector=query_embedding,
+            top_k=5
+        )
+        
+        # Convert to violations format
+        violations = []
+        for result in search_results:
+            violations.append({
+                "section": result.metadata.get("ipc_section", "Unknown"),
+                "text": result.metadata.get("description", ""),
+                "penalty": result.metadata.get("penalty", ""),
+                "similarity": result.score
+            })
+    else:
+        # Use GGUF implementation
+        log.info(f"Session {session_id}: Finding violations using GGUF")
+        pool = await ModelPool.get()
+        
+        hits = await asyncio.wait_for(
+            asyncio.to_thread(KB.retrieve, search_text),
+            timeout=15.0
+        )
 
-    # PERFORMANCE: Parallel violation checking with batching
-    violations = []
-    seen = set()
-    
-    # Limit hits to top 10 most relevant to reduce processing time
-    top_hits = hits[:10]
-    
-    # Create tasks for parallel violation checking
-    async def check_single_violation(h: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        try:
-            if await asyncio.wait_for(
-                pool.check_violation(search_text, h["text"]),
-                timeout=8.0  # Reduced timeout per check
-            ):
-                return h
-        except asyncio.TimeoutError:
-            log.warning(f"Violation check timeout for section {h.get('section', 'unknown')}")
-        except Exception as e:
-            log.warning(f"Violation check error: {e}")
-        return None
-    
-    # Run checks in parallel with concurrency limit
-    tasks = [check_single_violation(h) for h in top_hits]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    
-    # Collect valid violations
-    for result in results:
-        if result and not isinstance(result, Exception):
-            key = (result["section"], result["text"])
-            if key not in seen:
-                seen.add(key)
-                violations.append(result)
+        # PERFORMANCE: Parallel violation checking with batching
+        violations = []
+        seen = set()
+        
+        # Limit hits to top 10 most relevant to reduce processing time
+        top_hits = hits[:10]
+        
+        # Create tasks for parallel violation checking
+        async def check_single_violation(h: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+            try:
+                if await asyncio.wait_for(
+                    pool.check_violation(search_text, h["text"]),
+                    timeout=8.0
+                ):
+                    return h
+            except asyncio.TimeoutError:
+                log.warning(f"Violation check timeout for section {h.get('section', 'unknown')}")
+            except Exception as e:
+                log.warning(f"Violation check error: {e}")
+            return None
+        
+        # Run checks in parallel with concurrency limit
+        tasks = [check_single_violation(h) for h in top_hits]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Collect valid violations
+        for result in results:
+            if result and not isinstance(result, Exception):
+                key = (result["section"], result["text"])
+                if key not in seen:
+                    seen.add(key)
+                    violations.append(result)
 
     session_manager.add_validation_step(session_id, ValidationStep.VIOLATIONS_REVIEW, {
         "violations": violations,
@@ -1044,16 +1119,35 @@ async def find_violations_with_validation(session_id: str, summary: str, user_in
     return violations
 
 async def generate_fir_narrative_with_validation(session_id: str, transcript: str, user_input: Optional[str] = None) -> str:
-    pool = await ModelPool.get()
+    """
+    Generate FIR narrative with validation.
+    Routes to either GGUF or Bedrock implementation based on ENABLE_BEDROCK flag.
+    """
+    settings = get_settings()
     
     text_to_process = transcript
     if user_input:
         text_to_process = f"{transcript}\n\nAdditional details: {user_input}"
     
-    narrative = await asyncio.wait_for(
-        pool.fir_narrative(text_to_process),
-        timeout=CFG["model_timeouts"]["summary"]
-    )
+    if settings.enable_bedrock:
+        # Use Bedrock implementation
+        log.info(f"Session {session_id}: Generating FIR narrative using Bedrock")
+        fir_service = get_fir_generation_service()
+        
+        if not fir_service:
+            raise RuntimeError("Bedrock services not initialized")
+        
+        # Use Bedrock to generate formal narrative
+        result = await fir_service.bedrock_client.generate_formal_narrative(text_to_process)
+        narrative = result.narrative
+    else:
+        # Use GGUF implementation
+        log.info(f"Session {session_id}: Generating FIR narrative using GGUF")
+        pool = await ModelPool.get()
+        narrative = await asyncio.wait_for(
+            pool.fir_narrative(text_to_process),
+            timeout=CFG["model_timeouts"]["summary"]
+        )
 
     
     session_manager.add_validation_step(session_id, ValidationStep.FIR_NARRATIVE_REVIEW, {
@@ -1243,24 +1337,84 @@ class InteractiveFIRState(BaseModel):
     user_inputs: Dict[str, str] = Field(default_factory=dict)
 
 async def initial_processing(state: InteractiveFIRState) -> InteractiveFIRState:
+    """
+    Initial processing of audio/image files.
+    Routes to either GGUF or Bedrock implementation based on ENABLE_BEDROCK flag.
+    """
     try:
-        pool = await ModelPool.get()
+        settings = get_settings()
         
-        if state.audio_path:
-            log.info(f"Session {state.session_id}: Starting ASR processing")
-            state.transcript = await asyncio.wait_for(
-                pool.whisper_transcribe(state.audio_path),  # ✅ Direct async call
-                timeout=CFG["model_timeouts"]["asr"]
-            )
-            state.steps.append("asr_done")
+        if settings.enable_bedrock:
+            # Use Bedrock implementation
+            log.info(f"Session {state.session_id}: Using Bedrock implementation")
+            fir_service = get_fir_generation_service()
             
-        elif state.image_path:
-            log.info(f"Session {state.session_id}: Starting OCR processing")
-            state.transcript = await asyncio.wait_for(
-                pool.dots_ocr_sync(state.image_path),  # ✅ Direct async call
-                timeout=CFG["model_timeouts"]["ocr"]
-            )
-            state.steps.append("ocr_done")
+            if not fir_service:
+                raise RuntimeError("Bedrock services not initialized")
+            
+            if state.audio_path:
+                log.info(f"Session {state.session_id}: Starting Transcribe processing")
+                # Use Bedrock Transcribe
+                from fastapi import UploadFile
+                import aiofiles
+                
+                # Read the audio file
+                async with aiofiles.open(state.audio_path, 'rb') as f:
+                    content = await f.read()
+                
+                # Create UploadFile-like object
+                from io import BytesIO
+                audio_file = UploadFile(
+                    filename=state.audio_path,
+                    file=BytesIO(content)
+                )
+                
+                # Transcribe using Bedrock
+                result = await fir_service.transcribe_client.transcribe_audio(audio_file)
+                state.transcript = result.transcript
+                state.steps.append("transcribe_done")
+                
+            elif state.image_path:
+                log.info(f"Session {state.session_id}: Starting Textract processing")
+                # Use Bedrock Textract
+                from fastapi import UploadFile
+                import aiofiles
+                
+                # Read the image file
+                async with aiofiles.open(state.image_path, 'rb') as f:
+                    content = await f.read()
+                
+                # Create UploadFile-like object
+                from io import BytesIO
+                image_file = UploadFile(
+                    filename=state.image_path,
+                    file=BytesIO(content)
+                )
+                
+                # Extract text using Bedrock
+                result = await fir_service.textract_client.extract_text(image_file)
+                state.transcript = result.text
+                state.steps.append("textract_done")
+        else:
+            # Use GGUF implementation (legacy)
+            log.info(f"Session {state.session_id}: Using GGUF implementation")
+            pool = await ModelPool.get()
+            
+            if state.audio_path:
+                log.info(f"Session {state.session_id}: Starting ASR processing")
+                state.transcript = await asyncio.wait_for(
+                    pool.whisper_transcribe(state.audio_path),
+                    timeout=CFG["model_timeouts"]["asr"]
+                )
+                state.steps.append("asr_done")
+                
+            elif state.image_path:
+                log.info(f"Session {state.session_id}: Starting OCR processing")
+                state.transcript = await asyncio.wait_for(
+                    pool.dots_ocr_sync(state.image_path),
+                    timeout=CFG["model_timeouts"]["ocr"]
+                )
+                state.steps.append("ocr_done")
         
         session_manager.add_validation_step(state.session_id, ValidationStep.TRANSCRIPT_REVIEW, {
             "transcript": state.transcript
@@ -1337,9 +1491,89 @@ async def lifespan(app: FastAPI):
     log.info("=" * 60)
     
     try:
-        # Initialize model pool
+        # Get settings to determine which implementation to use
+        settings = get_settings()
+        
+        # Log active implementation prominently
+        implementation = "Bedrock (AWS managed services)" if settings.enable_bedrock else "GGUF (self-hosted models)"
+        log.info("=" * 60)
+        log.info(f"ACTIVE IMPLEMENTATION: {implementation}")
+        log.info(f"Feature Flag ENABLE_BEDROCK: {settings.enable_bedrock}")
+        log.info("=" * 60)
+        
+        # Initialize model pool (always needed for GGUF, may be needed for health checks)
         pool = await ModelPool.get()
         log.info("✅ Model pool initialized")
+        
+        # Initialize Bedrock services if enabled
+        fir_generation_service = None
+        
+        if settings.enable_bedrock:
+            log.info("Initializing Bedrock services...")
+            try:
+                # Initialize AWS clients
+                transcribe_client = TranscribeClient(
+                    region=settings.aws.region,
+                    s3_bucket=settings.aws.s3_bucket
+                )
+                
+                textract_client = TextractClient(
+                    region=settings.aws.region,
+                    s3_bucket=settings.aws.s3_bucket
+                )
+                
+                bedrock_client = BedrockClient(
+                    region=settings.aws.region,
+                    model_id=settings.bedrock.model_id
+                )
+                
+                titan_client = TitanEmbeddingsClient(
+                    region=settings.aws.region,
+                    model_id=settings.bedrock.embeddings_model_id
+                )
+                
+                # Initialize vector database
+                vector_db = VectorDBFactory.create(
+                    db_type=settings.vector_db.db_type,
+                    config=settings.vector_db
+                )
+                await vector_db.connect()
+                
+                # Initialize IPC cache
+                ipc_cache = IPCCache(max_size=settings.cache_max_size)
+                
+                # Initialize FIR Generation Service
+                fir_generation_service = FIRGenerationService(
+                    transcribe_client=transcribe_client,
+                    textract_client=textract_client,
+                    bedrock_client=bedrock_client,
+                    titan_client=titan_client,
+                    vector_db=vector_db,
+                    ipc_cache=ipc_cache
+                )
+                
+                # Store in app state and global variable for access in routes
+                app.state.fir_generation_service = fir_generation_service
+                app.state.vector_db = vector_db
+                global _fir_generation_service
+                _fir_generation_service = fir_generation_service
+                
+                log.info("✅ Bedrock services initialized successfully")
+                log.info(f"   - Transcribe client ready (region: {settings.aws.region})")
+                log.info(f"   - Textract client ready (region: {settings.aws.region})")
+                log.info(f"   - Bedrock client ready (model: {settings.bedrock.model_id})")
+                log.info(f"   - Titan Embeddings ready (model: {settings.bedrock.embeddings_model_id})")
+                log.info(f"   - Vector DB ready (type: {settings.vector_db.db_type})")
+                
+            except Exception as e:
+                log.error(f"Failed to initialize Bedrock services: {e}")
+                if settings.enable_bedrock:
+                    # If Bedrock is required, fail startup
+                    raise RuntimeError(f"Bedrock initialization failed: {e}")
+        else:
+            log.info("Bedrock services disabled - using GGUF implementation")
+            log.info("   - GGUF model servers will be used for all operations")
+            log.info("   - Ensure model servers are running and accessible")
         
         # Register dependency health checks
         async def check_model_server():
@@ -1490,6 +1724,14 @@ async def lifespan(app: FastAPI):
         # Stop health monitoring
         await health_monitor.stop()
         log.info("✅ Health monitoring stopped")
+        
+        # Cleanup Bedrock resources if initialized
+        if hasattr(app.state, 'vector_db'):
+            try:
+                await app.state.vector_db.close()
+                log.info("✅ Vector database connection closed")
+            except Exception as e:
+                log.error(f"Failed to close vector database: {e}")
         
         # Flush CloudWatch metrics
         try:
@@ -2165,23 +2407,40 @@ async def get_fir_content(fir_number: str):
 
 @app.get("/health")
 async def health():
+    """Health check endpoint with implementation status"""
     start_time = asyncio.get_event_loop().time()
     healthy = False
     
     try:
+        settings = get_settings()
+        implementation = "bedrock" if settings.enable_bedrock else "gguf"
+        
         pool = await ModelPool.get()
         
-        # CONCURRENCY: Use shared HTTP client for health checks
-        model_resp = await pool._http_client.get(f"{pool.MODEL_SERVER_URL}/health", timeout=5.0)
-        model_server_status = model_resp.json()
+        # Check model servers (always needed for GGUF, optional for Bedrock)
+        model_server_status = {"status": "not_checked"}
+        asr_ocr_server_status = {"status": "not_checked"}
         
-        # Check ASR/OCR server
-        asr_ocr_resp = await pool._http_client.get(f"{pool.ASR_OCR_SERVER_URL}/health", timeout=5.0)
-        asr_ocr_server_status = asr_ocr_resp.json()
-        
-        overall_status = "healthy"
-        if model_server_status.get("status") != "healthy" or asr_ocr_server_status.get("status") != "healthy":
-            overall_status = "degraded"
+        if not settings.enable_bedrock:
+            # GGUF mode - check model servers
+            # CONCURRENCY: Use shared HTTP client for health checks
+            model_resp = await pool._http_client.get(f"{pool.MODEL_SERVER_URL}/health", timeout=5.0)
+            model_server_status = model_resp.json()
+            
+            # Check ASR/OCR server
+            asr_ocr_resp = await pool._http_client.get(f"{pool.ASR_OCR_SERVER_URL}/health", timeout=5.0)
+            asr_ocr_server_status = asr_ocr_resp.json()
+            
+            overall_status = "healthy"
+            if model_server_status.get("status") != "healthy" or asr_ocr_server_status.get("status") != "healthy":
+                overall_status = "degraded"
+        else:
+            # Bedrock mode - check Bedrock services
+            fir_service = get_fir_generation_service()
+            if fir_service:
+                overall_status = "healthy"
+            else:
+                overall_status = "degraded"
         
         healthy = overall_status == "healthy"
         
@@ -2189,22 +2448,37 @@ async def health():
         duration_ms = (asyncio.get_event_loop().time() - start_time) * 1000
         record_health_check("main-backend", healthy, duration_ms)
         
-        # RELIABILITY: Include circuit breaker and health monitor status
-        return {
+        # Build response
+        response = {
             "status": overall_status,
-            "model_server": model_server_status,
-            "asr_ocr_server": asr_ocr_server_status,
+            "implementation": implementation,
+            "enable_bedrock": settings.enable_bedrock,
             "database": "connected",
-            "kb_collections": len(KB.cols),
-            "kb_cache_size": len(KB._query_cache),
             "session_persistence": "sqlite",
             "magic_available": MAGIC_AVAILABLE,
             "concurrency": {
                 "max_concurrent_requests": CFG["concurrency"]["max_concurrent_requests"],
                 "max_concurrent_model_calls": CFG["concurrency"]["max_concurrent_model_calls"],
                 "http_pool_size": CFG["concurrency"]["http_pool_connections"],
-            },
-            "reliability": {
+            }
+        }
+        
+        # Add implementation-specific details
+        if settings.enable_bedrock:
+            response["bedrock"] = {
+                "model_id": settings.bedrock.model_id,
+                "embeddings_model_id": settings.bedrock.embeddings_model_id,
+                "vector_db_type": settings.vector_db.db_type,
+                "services_initialized": fir_service is not None
+            }
+        else:
+            response["gguf"] = {
+                "model_server": model_server_status,
+                "asr_ocr_server": asr_ocr_server_status,
+                "kb_collections": len(KB.cols),
+                "kb_cache_size": len(KB._query_cache)
+            }
+            response["reliability"] = {
                 "circuit_breakers": {
                     "model_server": pool.model_server_circuit.get_status(),
                     "asr_ocr_server": pool.asr_ocr_circuit.get_status()
@@ -2212,7 +2486,8 @@ async def health():
                 "graceful_shutdown": graceful_shutdown.get_status(),
                 "health_monitor": health_monitor.get_status()
             }
-        }
+        
+        return response
     except Exception as e:
         log.error(f"Health check failed: {e}")
         
@@ -2220,7 +2495,13 @@ async def health():
         duration_ms = (asyncio.get_event_loop().time() - start_time) * 1000
         record_health_check("main-backend", False, duration_ms)
         
-        return {"status": "unhealthy", "error": str(e)}
+        settings = get_settings()
+        return {
+            "status": "unhealthy",
+            "implementation": "bedrock" if settings.enable_bedrock else "gguf",
+            "enable_bedrock": settings.enable_bedrock,
+            "error": str(e)
+        }
 
 # PERFORMANCE: Metrics cache
 _metrics_cache = None

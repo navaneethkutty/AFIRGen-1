@@ -1,47 +1,67 @@
-# AFIRGen AWS Free Tier Deployment Plan
+# AFIRGen AWS Bedrock Deployment Plan
 
 ## Executive Summary
 
-This plan provides step-by-step instructions to deploy AFIRGen on AWS within free tier limits. The deployment is **95% automated** using Terraform for infrastructure and automated scripts for model/data downloads from HuggingFace.
+This plan provides step-by-step instructions to deploy AFIRGen on AWS using Amazon Bedrock architecture. The deployment is **95% automated** using Terraform for infrastructure and automated scripts for data migration.
 
-**Estimated Time**: 30-45 minutes for first-time deployment
-**Monthly Cost**: $0 (within free tier limits for 12 months)
+**Estimated Time**: 45-60 minutes for first-time deployment
+**Monthly Cost**: Pay-per-use (estimated $50-150/month depending on usage)
 **Automation Level**: 95% automated (everything except AWS account setup)
 
 ---
 
 ## Architecture Overview
 
+### Bedrock Architecture
+
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ AWS Free Tier Architecture                                  │
-│                                                             │
-│  Internet                                                   │
-│     │                                                       │
-│     ▼                                                       │
-│  [Elastic IP] ──> [EC2 t2.micro - Public Subnet]          │
-│                    │                                        │
-│                    ├─ Docker: Main Backend (Port 8000)     │
-│                    ├─ Docker: GGUF Model Server (8001)     │
-│                    ├─ Docker: ASR/OCR Server (8002)        │
-│                    ├─ Docker: Frontend (80)                │
-│                    ├─ Docker: Nginx (443)                  │
-│                    ├─ Docker: Redis                        │
-│                    └─ Docker: Celery Worker                │
-│                    │                                        │
-│                    ▼                                        │
-│              [RDS db.t3.micro - Private Subnet]            │
-│                    MySQL 8.0 (20GB)                        │
-│                                                             │
-│  [S3 Buckets]                                              │
-│     ├─ afirgen-models (ML models ~5GB)                    │
-│     ├─ afirgen-frontend (static files)                    │
-│     ├─ afirgen-temp (uploads)                             │
-│     └─ afirgen-backups (DB backups)                       │
-│                                                             │
-│  [CloudWatch] - Monitoring & Logs                          │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│ AWS Bedrock Architecture                                            │
+│                                                                     │
+│  Internet                                                           │
+│     │                                                               │
+│     ▼                                                               │
+│  [Elastic IP] ──> [EC2 t3.small/medium - Public Subnet]           │
+│                    │                                                │
+│                    ├─ FastAPI Backend (Port 8000)                  │
+│                    ├─ IPC Cache (In-Memory)                        │
+│                    └─ X-Ray Daemon                                 │
+│                    │                                                │
+│                    ▼                                                │
+│              [RDS MySQL - Private Subnet]                          │
+│                    FIR Storage (20GB)                              │
+│                    │                                                │
+│                    ▼                                                │
+│              [Vector Database - Private Subnet]                    │
+│                    OpenSearch Serverless OR                        │
+│                    Aurora PostgreSQL with pgvector                 │
+│                                                                     │
+│  [AWS Managed Services via VPC Endpoints]                          │
+│     ├─ Amazon Bedrock (Claude 3 Sonnet)                           │
+│     ├─ Amazon Bedrock (Titan Embeddings)                          │
+│     ├─ Amazon Transcribe (10 Indian Languages)                    │
+│     ├─ Amazon Textract (Document OCR)                             │
+│     └─ Amazon S3 (Temporary File Storage)                         │
+│                                                                     │
+│  [Observability]                                                   │
+│     ├─ CloudWatch (Metrics & Logs)                                │
+│     └─ X-Ray (Distributed Tracing)                                │
+└─────────────────────────────────────────────────────────────────────┘
 ```
+
+### Key Differences from GGUF Architecture
+
+| Component | GGUF Architecture | Bedrock Architecture |
+|-----------|-------------------|---------------------|
+| **Compute** | g5.2xlarge GPU ($1.21/hour) | t3.small/medium ($0.02-0.04/hour) |
+| **Transcription** | Self-hosted Whisper | Amazon Transcribe |
+| **OCR** | Self-hosted Donut | Amazon Textract |
+| **LLM** | Self-hosted GGUF models | Amazon Bedrock (Claude 3 Sonnet) |
+| **Embeddings** | Self-hosted model | Amazon Bedrock (Titan Embeddings) |
+| **Vector DB** | ChromaDB | OpenSearch Serverless or Aurora pgvector |
+| **Cost Model** | Fixed hourly cost | Pay-per-use |
+| **Maintenance** | Manual model updates | AWS managed |
+| **Scalability** | Limited by instance | Auto-scaling |
 
 ---
 
@@ -49,12 +69,24 @@ This plan provides step-by-step instructions to deploy AFIRGen on AWS within fre
 
 ### 1. AWS Account Setup
 - [ ] Create AWS account at https://aws.amazon.com/
-- [ ] Verify free tier eligibility (12 months for new accounts)
 - [ ] Enable MFA for root account (security best practice)
 - [ ] Create IAM user with admin access
 - [ ] Save AWS Access Key ID and Secret Access Key
+- [ ] **Request Bedrock model access** (see below)
 
-### 2. Local Tools Installation
+### 2. Request Amazon Bedrock Model Access
+
+**IMPORTANT**: You must request access to Bedrock models before deployment.
+
+1. Log in to AWS Console
+2. Navigate to Amazon Bedrock service
+3. Go to "Model access" in the left sidebar
+4. Request access to:
+   - **Claude 3 Sonnet** (anthropic.claude-3-sonnet-20240229-v1:0)
+   - **Titan Embeddings** (amazon.titan-embed-text-v1)
+5. Wait for approval (usually instant for Titan, may take 1-2 hours for Claude)
+
+### 3. Local Tools Installation
 
 **Option A: Automated (Recommended)**
 ```bash
@@ -69,7 +101,6 @@ brew install terraform
 
 # Windows
 choco install terraform
-# Or download from https://www.terraform.io/downloads
 
 # AWS CLI
 # macOS
@@ -77,10 +108,9 @@ brew install awscli
 
 # Windows
 choco install awscli
-# Or download from https://aws.amazon.com/cli/
 ```
 
-### 3. Configure AWS CLI
+### 4. Configure AWS CLI
 
 **Option A: Automated (Recommended)**
 ```bash
@@ -93,11 +123,14 @@ aws configure
 # Enter:
 # - AWS Access Key ID
 # - AWS Secret Access Key
-# - Default region: us-east-1
+# - Default region: us-east-1 (or ap-south-1 for India)
 # - Default output format: json
 
 # Verify configuration
 aws sts get-caller-identity
+
+# Verify Bedrock access
+aws bedrock list-foundation-models --region us-east-1
 ```
 
 ---
@@ -111,8 +144,11 @@ If you just want to deploy everything quickly:
 make install-tools
 make setup-aws
 
-# 2. Deploy everything (infrastructure + models + app)
-make deploy-all
+# 2. Deploy Bedrock infrastructure
+make deploy-bedrock
+
+# 3. Migrate data to vector database
+make migrate-data
 ```
 
 That's it! The entire deployment is automated. Skip to the "Verify Deployment" section below.
@@ -130,11 +166,29 @@ cd "AFIRGEN FINAL/terraform/free-tier"
 # Create configuration file
 cp terraform.tfvars.example terraform.tfvars
 
-# Edit terraform.tfvars (optional - defaults are optimized)
-# You can customize:
-# - project_name
-# - environment
-# - aws_region (keep us-east-1 for free tier)
+# Edit terraform.tfvars
+nano terraform.tfvars
+```
+
+**Required Configuration:**
+```hcl
+# Project Configuration
+project_name = "afirgen"
+environment  = "production"
+aws_region   = "us-east-1"  # or "ap-south-1" for India
+
+# Instance Configuration
+instance_type = "t3.small"  # or "t3.medium" for better performance
+
+# Vector Database Selection
+vector_db_type = "opensearch"  # or "aurora_pgvector"
+
+# Bedrock Configuration
+bedrock_model_id = "anthropic.claude-3-sonnet-20240229-v1:0"
+embeddings_model_id = "amazon.titan-embed-text-v1"
+
+# Enable Bedrock Architecture
+enable_bedrock = true
 ```
 
 ### Step 1.2: Initialize Terraform
@@ -159,12 +213,15 @@ terraform plan
 # - 1 VPC (10.0.0.0/16)
 # - 3 Subnets (1 public, 2 private)
 # - 1 Internet Gateway
-# - 2 Security Groups
+# - Security Groups (EC2, RDS, Vector DB, VPC Endpoints)
 # - 4 S3 Buckets
-# - 1 EC2 t2.micro instance
-# - 1 RDS db.t3.micro instance
+# - 1 EC2 t3.small/medium instance
+# - 1 RDS MySQL instance
+# - 1 Vector Database (OpenSearch or Aurora pgvector)
+# - 4 VPC Endpoints (Bedrock, Transcribe, Textract, S3)
+# - IAM roles and policies with Bedrock permissions
+# - KMS key for encryption
 # - 1 Elastic IP
-# - IAM roles and policies
 ```
 
 ### Step 1.4: Deploy Infrastructure
@@ -180,7 +237,7 @@ make deploy-infra
 terraform apply
 
 # Review the plan and type 'yes' to confirm
-# Deployment takes 10-15 minutes
+# Deployment takes 15-20 minutes
 ```
 
 ### Step 1.5: Save Outputs
@@ -192,17 +249,21 @@ terraform output -json > deployment-outputs.json
 # View specific outputs
 terraform output ec2_public_ip
 terraform output rds_endpoint
+terraform output vector_db_endpoint
 terraform output s3_bucket_names
 ```
 
 **What Gets Created Automatically:**
 - ✅ VPC with public and private subnets
-- ✅ Security groups (EC2, RDS)
-- ✅ S3 buckets with lifecycle policies
-- ✅ EC2 instance with Docker pre-installed
-- ✅ RDS MySQL database
-- ✅ CloudWatch monitoring setup
-- ✅ IAM roles and policies
+- ✅ Security groups (EC2, RDS, Vector DB, VPC Endpoints)
+- ✅ S3 buckets with SSE-KMS encryption
+- ✅ EC2 instance (t3.small/medium) with Docker
+- ✅ RDS MySQL database with encryption at rest
+- ✅ Vector database (OpenSearch Serverless or Aurora pgvector)
+- ✅ VPC endpoints for Bedrock, Transcribe, Textract, S3
+- ✅ IAM roles with Bedrock, Transcribe, Textract permissions
+- ✅ KMS key with automatic rotation
+- ✅ CloudWatch monitoring and X-Ray tracing setup
 
 ---
 
@@ -224,31 +285,23 @@ tail -f /var/log/user-data.log
 # Look for: "User data script completed successfully"
 ```
 
-### Step 2.2: Download ML Models from HuggingFace (AUTOMATED)
+### Step 2.2: Configure Environment Variables (AUTOMATED)
 
 **Option A: Automated (Recommended)**
 ```bash
-make download-models
+make setup-bedrock-env
 ```
 
-This automatically downloads:
-- ✅ complaint_2summarizing.gguf (~1.5GB)
-- ✅ complaint_summarizing_model.gguf (~1.5GB)
-- ✅ BNS-RAG-q4k.gguf (~2GB)
-- ✅ Whisper 'tiny' model (~75MB)
-- ✅ Donut OCR model (~500MB)
+This automatically generates `.env.bedrock` with:
+- ✅ AWS region and service endpoints
+- ✅ Bedrock model IDs
+- ✅ Vector database connection details
+- ✅ S3 bucket names
+- ✅ RDS connection string
+- ✅ Secure random keys
+- ✅ Feature flag (ENABLE_BEDROCK=true)
 
 **Option B: Manual**
-```bash
-cd "AFIRGEN FINAL"
-chmod +x scripts/download-models.sh
-./scripts/download-models.sh
-```
-
-All models are downloaded from HuggingFace user: [navaneeth005](https://huggingface.co/navaneeth005)
-
-### Step 2.3: Configure Environment Variables (MANUAL)
-
 ```bash
 # SSH to EC2 instance
 ssh -i your-key.pem ubuntu@$EC2_IP
@@ -256,104 +309,190 @@ ssh -i your-key.pem ubuntu@$EC2_IP
 # Navigate to application directory
 cd /opt/afirgen
 
-# Create .env file from example
-cp .env.example .env
-
-# Edit .env file
-nano .env
+# Create .env.bedrock file
+nano .env.bedrock
 ```
 
 **Required Configuration:**
 ```bash
-# MySQL Database (RDS endpoint from Terraform output)
-MYSQL_HOST=<RDS_ENDPOINT>  # Get from: terraform output rds_endpoint
+# AWS Configuration
+AWS_REGION=us-east-1
+AWS_DEFAULT_REGION=us-east-1
+
+# Bedrock Configuration
+BEDROCK_MODEL_ID=anthropic.claude-3-sonnet-20240229-v1:0
+BEDROCK_EMBEDDINGS_MODEL_ID=amazon.titan-embed-text-v1
+ENABLE_BEDROCK=true
+
+# Vector Database Configuration
+VECTOR_DB_TYPE=opensearch  # or aurora_pgvector
+VECTOR_DB_ENDPOINT=<VECTOR_DB_ENDPOINT>  # From Terraform output
+VECTOR_DB_INDEX_NAME=ipc_sections
+
+# OpenSearch Configuration (if using OpenSearch)
+OPENSEARCH_REGION=us-east-1
+
+# Aurora pgvector Configuration (if using Aurora)
+PG_HOST=<AURORA_ENDPOINT>
+PG_PORT=5432
+PG_DATABASE=afirgen_vectors
+PG_USER=admin
+PG_PASSWORD=<SECURE_PASSWORD>
+
+# S3 Configuration
+S3_BUCKET_NAME=<TEMP_BUCKET_NAME>  # From Terraform output
+
+# MySQL Database (RDS)
+MYSQL_HOST=<RDS_ENDPOINT>  # From Terraform output
 MYSQL_PORT=3306
 MYSQL_USER=admin
-MYSQL_PASSWORD=<YOUR_SECURE_PASSWORD>  # Set during Terraform apply
+MYSQL_PASSWORD=<YOUR_SECURE_PASSWORD>
 MYSQL_DB=fir_db
 
 # Application Configuration
 PORT=8000
 FIR_AUTH_KEY=<GENERATE_SECURE_KEY>  # Use: openssl rand -hex 32
-API_KEY=<GENERATE_SECURE_KEY>  # Use: openssl rand -hex 32
+API_KEY=<GENERATE_SECURE_KEY>
 
-# Model Server Configuration
-MODEL_SERVER_PORT=8001
-ASR_OCR_PORT=8002
-
-# CORS Configuration (use your domain or EC2 IP)
-CORS_ORIGINS=http://<EC2_PUBLIC_IP>,https://<EC2_PUBLIC_IP>
+# Transcribe Configuration
+TRANSCRIBE_LANGUAGES=hi-IN,en-IN,ta-IN,te-IN,bn-IN,mr-IN,gu-IN,kn-IN,ml-IN,pa-IN
 
 # Rate Limiting
 RATE_LIMIT_REQUESTS=100
 RATE_LIMIT_WINDOW=60
 
+# Retry Configuration
+MAX_RETRIES=2
+BASE_DELAY=1.0
+MAX_DELAY=60.0
+
+# Circuit Breaker Configuration
+FAILURE_THRESHOLD=5
+RECOVERY_TIMEOUT=60
+HALF_OPEN_MAX_CALLS=3
+
+# Caching Configuration
+ENABLE_CACHING=true
+CACHE_MAX_SIZE=100
+
+# Monitoring Configuration
+ENABLE_XRAY=true
+CLOUDWATCH_NAMESPACE=AFIRGen/Bedrock
+
 # Security
 ENFORCE_HTTPS=false  # Set to true after SSL setup
 SESSION_TIMEOUT=3600
+
+# CORS Configuration
+CORS_ORIGINS=http://<EC2_PUBLIC_IP>,https://<EC2_PUBLIC_IP>
 
 # Frontend Configuration
 API_BASE_URL=http://<EC2_PUBLIC_IP>:8000
 ENVIRONMENT=production
 ENABLE_DEBUG=false
-
-# AWS Configuration
-AWS_REGION=us-east-1
-USE_AWS_SECRETS=false  # Can enable later for better security
 ```
 
-### Step 2.4: Download Models from S3 to EC2
+### Step 2.3: Validate Environment Configuration
 
 ```bash
 # SSH to EC2 instance
 ssh -i your-key.pem ubuntu@$EC2_IP
 
-# Get models bucket name
-MODELS_BUCKET=$(aws s3 ls | grep afirgen-models | awk '{print $3}')
-
-# Download models to EC2
+# Run validation script
 cd /opt/afirgen
-aws s3 sync s3://$MODELS_BUCKET/ ./models/
+python scripts/validate-env.py
 
-# Verify models downloaded
-ls -lh models/
+# Expected output:
+# ✅ All required environment variables present
+# ✅ AWS credentials configured
+# ✅ Bedrock access verified
+# ✅ Vector database connection successful
+# ✅ RDS connection successful
+# ✅ S3 bucket accessible
 ```
 
-### Step 2.5: Download Knowledge Base Files (AUTOMATED)
+---
+
+## Phase 3: Data Migration (AUTOMATED)
+
+### Step 3.1: Export IPC Sections from ChromaDB
 
 **Option A: Automated (Recommended)**
 ```bash
-make download-kb
+make export-chromadb
 ```
-
-This automatically downloads from HuggingFace:
-- ✅ BNS_basic_chroma.jsonl (BNS definitions)
-- ✅ BNS_details_chroma.jsonl (BNS detailed sections)
-- ✅ BNS_spacts_chroma.jsonl (Special acts)
-- ✅ BNS_basic.jsonl (General retrieval)
-- ✅ BNS_indepth.jsonl (Detailed retrieval)
-- ✅ spacts.jsonl (Special acts retrieval)
 
 **Option B: Manual**
 ```bash
-cd "AFIRGEN FINAL"
-chmod +x scripts/download-knowledge-base.sh
-./scripts/download-knowledge-base.sh
+# SSH to EC2 instance
+ssh -i your-key.pem ubuntu@$EC2_IP
+
+# Run export script
+cd /opt/afirgen
+python scripts/export_chromadb.py
+
+# Verify export
+ls -lh data/ipc_sections_export.json
 ```
 
-All datasets are downloaded from HuggingFace user: [navaneeth005](https://huggingface.co/navaneeth005)
-
-### Step 2.6: Deploy Application to EC2 (AUTOMATED)
+### Step 3.2: Migrate to Vector Database
 
 **Option A: Automated (Recommended)**
 ```bash
-make deploy-app
+make migrate-vectors
+```
+
+This automatically:
+- ✅ Reads exported IPC sections
+- ✅ Generates new embeddings using Titan Embeddings
+- ✅ Inserts into target vector database (OpenSearch or Aurora)
+- ✅ Verifies embedding count matches source
+- ✅ Performs sample similarity searches
+
+**Option B: Manual**
+```bash
+# SSH to EC2 instance
+ssh -i your-key.pem ubuntu@$EC2_IP
+
+# Run migration script
+cd /opt/afirgen
+python scripts/migrate_vector_db.py
+
+# Monitor progress
+tail -f logs/migration.log
+
+# Verify migration
+python scripts/verify_migration.py
+```
+
+**Migration Output:**
+```
+Starting vector database migration...
+✅ Loaded 500 IPC sections from export
+✅ Generated embeddings for 500 sections (batch size: 25)
+✅ Inserted 500 vectors into opensearch
+✅ Verified: 500 vectors in source, 500 in target
+✅ Sample similarity search successful
+Migration completed in 12.5 minutes
+```
+
+---
+
+## Phase 4: Application Deployment (AUTOMATED)
+
+### Step 4.1: Deploy Application to EC2
+
+**Option A: Automated (Recommended)**
+```bash
+make deploy-bedrock-app
 ```
 
 This automatically:
 - ✅ Copies application files to EC2
-- ✅ Copies knowledge base files to EC2
-- ✅ Starts all Docker services
+- ✅ Installs Python dependencies
+- ✅ Starts FastAPI backend
+- ✅ Configures X-Ray daemon
+- ✅ Sets up CloudWatch agent
 - ✅ Waits for services to be healthy
 
 **Option B: Manual**
@@ -364,27 +503,31 @@ ssh -i your-key.pem ubuntu@$EC2_IP
 # Navigate to application directory
 cd /opt/afirgen
 
-# Start all services with Docker Compose
-docker-compose up -d
+# Install dependencies
+pip install -r requirements.txt
 
-# Check service status
-docker-compose ps
+# Start application
+uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 
-# View logs
-docker-compose logs -f
+# Or use systemd service
+sudo systemctl start afirgen-backend
+sudo systemctl enable afirgen-backend
 ```
 
-### Step 2.7: Verify Deployment (AUTOMATED)
+### Step 4.2: Verify Deployment
 
 **Option A: Automated (Recommended)**
 ```bash
-make verify
+make verify-bedrock
 ```
 
 This automatically:
 - ✅ Tests health endpoint
+- ✅ Verifies Bedrock connectivity
+- ✅ Tests Transcribe service
+- ✅ Tests Textract service
+- ✅ Tests vector database
 - ✅ Displays access URLs
-- ✅ Verifies all services are running
 
 **Option B: Manual**
 ```bash
@@ -394,303 +537,220 @@ curl http://<EC2_PUBLIC_IP>:8000/health
 # Expected response:
 # {
 #   "status": "healthy",
-#   "model_server": {"status": "healthy"},
-#   "asr_ocr_server": {"status": "healthy"},
-#   "database": "connected",
-#   "kb_collections": 3
+#   "bedrock": {"status": "connected", "model": "claude-3-sonnet"},
+#   "transcribe": {"status": "available"},
+#   "textract": {"status": "available"},
+#   "vector_db": {"status": "connected", "type": "opensearch", "count": 500},
+#   "database": "connected"
 # }
 
-# Access frontend
-# Open browser: http://<EC2_PUBLIC_IP>
-
-# Check API documentation
+# Access API documentation
 # Open browser: http://<EC2_PUBLIC_IP>:8000/docs
 ```
 
 ---
 
-## Phase 3: Database Setup (AUTOMATED)
+## Phase 5: Testing (MANUAL)
 
-The database is automatically initialized by the application on first start. No manual steps required!
+### Step 5.1: Test Audio Transcription
 
-**What Happens Automatically:**
-- ✅ Database connection established to RDS
-- ✅ `fir_records` table created
-- ✅ Connection pooling configured
-- ✅ Character encoding set (utf8mb4)
-
-**Verify Database:**
 ```bash
-# SSH to EC2
-ssh -i your-key.pem ubuntu@$EC2_IP
+# Upload sample audio file
+curl -X POST http://<EC2_PUBLIC_IP>:8000/api/v1/fir/generate/audio \
+  -H "Authorization: Bearer <TOKEN>" \
+  -F "audio_file=@sample_audio.mp3" \
+  -F "language_code=hi-IN" \
+  -F "complainant_name=Test User" \
+  -F "complainant_address=Test Address" \
+  -F "complainant_phone=1234567890" \
+  -F "station_name=Test Station" \
+  -F "investigating_officer=Test Officer"
 
-# Check database connection
-docker exec -it <backend-container-id> python -c "
-from infrastructure.database import get_db_connection
-conn = get_db_connection()
-print('Database connected successfully!')
-conn.close()
-"
+# Expected: FIR generated with transcript
+```
+
+### Step 5.2: Test Document OCR
+
+```bash
+# Upload sample image file
+curl -X POST http://<EC2_PUBLIC_IP>:8000/api/v1/fir/generate/image \
+  -H "Authorization: Bearer <TOKEN>" \
+  -F "image_file=@sample_document.jpg" \
+  -F "complainant_name=Test User" \
+  -F "complainant_address=Test Address" \
+  -F "complainant_phone=1234567890" \
+  -F "station_name=Test Station" \
+  -F "investigating_officer=Test Officer"
+
+# Expected: FIR generated with extracted text
+```
+
+### Step 5.3: Test Text-Based FIR Generation
+
+```bash
+# Generate FIR from text
+curl -X POST http://<EC2_PUBLIC_IP>:8000/api/v1/fir/generate \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "complaint_text": "My mobile phone was stolen yesterday at the market.",
+    "complainant_name": "Test User",
+    "complainant_address": "Test Address",
+    "complainant_phone": "1234567890",
+    "station_name": "Test Station",
+    "investigating_officer": "Test Officer"
+  }'
+
+# Expected: FIR generated with relevant IPC sections
 ```
 
 ---
 
-## Phase 4: SSL/HTTPS Setup (OPTIONAL - MANUAL)
-
-### Option A: Self-Signed Certificate (Development)
-
-```bash
-# SSH to EC2
-ssh -i your-key.pem ubuntu@$EC2_IP
-
-cd /opt/afirgen
-./scripts/generate-certs.sh
-# Select option 1 for self-signed certificate
-
-# Update .env
-nano .env
-# Set: ENFORCE_HTTPS=true
-
-# Restart services
-docker-compose restart
-```
-
-### Option B: Let's Encrypt (Production - Requires Domain)
-
-**Prerequisites:**
-- Domain name pointed to EC2 Elastic IP
-- Port 80 and 443 open in security group
-
-```bash
-# SSH to EC2
-ssh -i your-key.pem ubuntu@$EC2_IP
-
-cd /opt/afirgen
-./scripts/generate-certs.sh
-# Select option 2 for Let's Encrypt
-# Enter your domain name and email
-
-# Update .env
-nano .env
-# Set: ENFORCE_HTTPS=true
-# Set: DOMAIN_NAME=yourdomain.com
-
-# Restart services
-docker-compose restart
-```
-
----
-
-## Phase 5: Monitoring & Maintenance (AUTOMATED)
+## Phase 6: Monitoring & Observability (AUTOMATED)
 
 ### CloudWatch Monitoring (Already Configured)
 
 **Automatic Monitoring:**
 - ✅ EC2 CPU, memory, disk metrics
 - ✅ RDS database metrics
+- ✅ Bedrock request count, latency, token usage
+- ✅ Transcribe request count, latency
+- ✅ Textract request count, latency
+- ✅ Vector database operation metrics
 - ✅ Application logs
 - ✅ Error tracking
-- ✅ Performance metrics
 
 **View Metrics:**
 ```bash
 # AWS Console → CloudWatch → Dashboards
-# Look for: afirgen-free-tier-dashboard
+# Look for: afirgen-bedrock-dashboard
+
+# Or use CLI
+aws cloudwatch get-metric-statistics \
+  --namespace AFIRGen/Bedrock \
+  --metric-name BedrockRequestCount \
+  --start-time 2024-01-01T00:00:00Z \
+  --end-time 2024-01-02T00:00:00Z \
+  --period 3600 \
+  --statistics Sum
 ```
 
-### Automated Backups (Already Configured)
+### X-Ray Distributed Tracing
 
-**Database Backups:**
-- ✅ Daily automated backups to S3
-- ✅ 7-day retention policy
-- ✅ Runs via cron job on EC2
-
-**Verify Backups:**
+**View Traces:**
 ```bash
-# Check backup bucket
-BACKUP_BUCKET=$(terraform output -raw s3_backups_bucket)
-aws s3 ls s3://$BACKUP_BUCKET/
+# AWS Console → X-Ray → Traces
+# Filter by: Service name = afirgen-backend
 
-# View backup logs on EC2
-ssh -i your-key.pem ubuntu@$EC2_IP
-cat /var/log/backup.log
+# View service map
+# AWS Console → X-Ray → Service map
 ```
+
+**Trace Details Include:**
+- Request flow through all AWS services
+- Latency breakdown by service
+- Error details with stack traces
+- Correlation IDs for debugging
 
 ---
 
-## Cost Breakdown (Free Tier)
+## Cost Breakdown (Pay-Per-Use)
 
-| Service | Free Tier Limit | Usage | Cost |
-|---------|----------------|-------|------|
-| EC2 t2.micro | 750 hours/month | 1 instance 24/7 | $0 |
-| RDS db.t3.micro | 750 hours/month | 1 instance 24/7 | $0 |
-| EBS Storage | 30 GB | 30 GB (EC2) + 20 GB (RDS) | $0 |
-| S3 Storage | 5 GB | ~5 GB (models) | $0 |
-| S3 Requests | 20,000 GET, 2,000 PUT | Normal usage | $0 |
-| Data Transfer | 100 GB/month out | Typical usage | $0 |
-| CloudWatch | 10 metrics, 5 GB logs | Standard monitoring | $0 |
-| **Total** | | | **$0/month** |
+### Monthly Cost Estimation (Moderate Usage)
 
-**After Free Tier (12 months):**
-- Estimated cost: $30-40/month
-- Can optimize further or migrate to cheaper alternatives
+| Service | Usage | Unit Cost | Monthly Cost |
+|---------|-------|-----------|--------------|
+| EC2 t3.small | 730 hours | $0.0208/hour | $15.18 |
+| RDS db.t3.micro | 730 hours | $0.017/hour | $12.41 |
+| EBS Storage | 50 GB | $0.10/GB | $5.00 |
+| OpenSearch Serverless | 2 OCU | $0.24/OCU-hour | $350.40 |
+| Bedrock Claude 3 Sonnet | 1M input tokens | $0.003/1K | $3.00 |
+| Bedrock Claude 3 Sonnet | 500K output tokens | $0.015/1K | $7.50 |
+| Bedrock Titan Embeddings | 1M tokens | $0.0001/1K | $0.10 |
+| Transcribe | 100 hours | $0.024/min | $144.00 |
+| Textract | 1000 pages | $0.0015/page | $1.50 |
+| S3 Storage | 10 GB | $0.023/GB | $0.23 |
+| Data Transfer | 50 GB out | $0.09/GB | $4.50 |
+| CloudWatch | Standard | Included | $0.00 |
+| **Total** | | | **~$543.82/month** |
 
----
+### Cost Optimization Options
 
-## Automation Summary
+1. **Use Aurora pgvector instead of OpenSearch** (~$350/month savings)
+   - Aurora Serverless v2: ~$50/month
+   - Total with Aurora: ~$193/month
 
-### What's Automated ✅
+2. **Reduce Transcribe usage**
+   - Cache transcripts
+   - Use shorter audio clips
+   - Batch processing
 
-1. **Infrastructure Provisioning** (Terraform)
-   - VPC, subnets, security groups
-   - EC2 instance with Docker
-   - RDS database
-   - S3 buckets
-   - IAM roles and policies
-   - CloudWatch monitoring
+3. **Optimize Bedrock usage**
+   - Cache frequent queries
+   - Use shorter prompts
+   - Implement request batching
 
-2. **EC2 Setup** (User Data Script)
-   - Docker and Docker Compose installation
-   - CloudWatch agent setup
-   - Directory structure creation
-   - Cron jobs for backups
-   - Monitoring scripts
+4. **Use Reserved Instances** (1-year commitment)
+   - EC2 savings: ~40%
+   - RDS savings: ~35%
 
-3. **Application Initialization**
-   - Database table creation
-   - Connection pooling
-   - Health checks
-   - Auto-restart on failure
+**Recommended Configuration for Cost Optimization:**
+- Vector DB: Aurora pgvector
+- EC2: t3.small with 1-year RI
+- RDS: db.t3.micro with 1-year RI
+- **Estimated cost: $100-150/month**
 
-4. **Monitoring & Backups**
-   - CloudWatch metrics collection
-   - Daily database backups
-   - Log aggregation
-   - Alert notifications
-
-### What's Manual 🔧
-
-1. **Initial Setup**
-   - AWS account creation
-   - Tool installation (Terraform, AWS CLI)
-   - AWS credentials configuration
-   - SSH key pair creation
-
-2. **Model Deployment**
-   - Uploading ML models to S3 (large files)
-   - Downloading models to EC2
-   - Model file verification
-
-3. **Configuration**
-   - Environment variables (.env file)
-   - Security keys generation
-   - Domain name setup (if using HTTPS)
-   - CORS origins configuration
-
-4. **Knowledge Base**
-   - Uploading RAG database files
-   - Uploading general retrieval files
-
-5. **SSL/HTTPS** (Optional)
-   - Certificate generation
-   - Domain DNS configuration
+See [COST-ESTIMATION.md](COST-ESTIMATION.md) for detailed cost breakdowns, optimization strategies, and monthly estimates for different usage scenarios.
 
 ---
 
-## Troubleshooting Guide
+## Rollback to GGUF Architecture
 
-### Issue: Terraform Apply Fails
+If you need to revert to the GGUF architecture:
 
-**Solution:**
 ```bash
-# Check AWS credentials
-aws sts get-caller-identity
+# Option A: Automated
+make rollback-to-gguf
 
-# Verify region
-aws configure get region
-
-# Check for resource limits
-aws service-quotas list-service-quotas --service-code ec2
-
-# Retry with verbose logging
-terraform apply -auto-approve TF_LOG=DEBUG
-```
-
-### Issue: EC2 Instance Not Accessible
-
-**Solution:**
-```bash
-# Check instance status
-aws ec2 describe-instances --instance-ids <INSTANCE_ID>
-
-# Verify security group allows SSH (port 22)
-aws ec2 describe-security-groups --group-ids <SG_ID>
-
-# Check SSH key permissions
-chmod 400 your-key.pem
-
-# Try connecting with verbose output
-ssh -v -i your-key.pem ubuntu@<EC2_IP>
-```
-
-### Issue: Docker Services Won't Start
-
-**Solution:**
-```bash
-# SSH to EC2
+# Option B: Manual
 ssh -i your-key.pem ubuntu@$EC2_IP
-
-# Check Docker status
-sudo systemctl status docker
-
-# Check disk space
-df -h
-
-# Check memory
-free -h
-
-# View service logs
-docker-compose logs <service-name>
-
-# Restart services
-docker-compose restart
+cd /opt/afirgen
+./scripts/rollback-to-gguf.sh
 ```
 
-### Issue: Database Connection Failed
+This sets `ENABLE_BEDROCK=false` and restarts with GGUF models.
 
-**Solution:**
+See [FEATURE-FLAG-ROLLBACK.md](AFIRGEN FINAL/docs/FEATURE-FLAG-ROLLBACK.md) for details.
+
+---
+
+## Troubleshooting
+
+See [BEDROCK-TROUBLESHOOTING.md](BEDROCK-TROUBLESHOOTING.md) for comprehensive troubleshooting guide.
+
+### Quick Fixes
+
+**Issue: Bedrock Access Denied**
 ```bash
-# Verify RDS endpoint
-terraform output rds_endpoint
+# Verify model access in AWS Console
+# Bedrock → Model access → Request access to Claude 3 Sonnet
 
-# Check security group allows EC2 to RDS (port 3306)
-aws ec2 describe-security-groups --group-ids <RDS_SG_ID>
-
-# Test connection from EC2
-ssh -i your-key.pem ubuntu@$EC2_IP
-mysql -h <RDS_ENDPOINT> -u admin -p
-
-# Check RDS status
-aws rds describe-db-instances --db-instance-identifier <DB_ID>
+# Check IAM permissions
+aws iam get-role-policy --role-name afirgen-ec2-role --policy-name BedrockAccess
 ```
 
-### Issue: Models Not Loading
-
-**Solution:**
+**Issue: Vector Database Connection Failed**
 ```bash
-# Check model files exist
-ssh -i your-key.pem ubuntu@$EC2_IP
-ls -lh /opt/afirgen/models/
+# Check security group allows EC2 to Vector DB
+# Check VPC endpoint connectivity
+# Verify credentials in .env.bedrock
+```
 
-# Check model server logs
-docker-compose logs gguf_model_server
-docker-compose logs asr_ocr_model_server
-
-# Verify model file permissions
-chmod -R 755 /opt/afirgen/models/
-
-# Check available disk space
-df -h /opt/afirgen/models/
+**Issue: High Costs**
+```bash
+# Check CloudWatch metrics for usage
+# Review cost optimization options above
+# Consider switching to Aurora pgvector
 ```
 
 ---
@@ -701,18 +761,19 @@ df -h /opt/afirgen/models/
 - ✅ Database backups to S3
 - ✅ Log rotation
 - ✅ Health checks
+- ✅ Cost tracking
 
 ### Weekly (Manual)
 - [ ] Review CloudWatch metrics
-- [ ] Check disk space usage
-- [ ] Review application logs
-- [ ] Test backup restoration
+- [ ] Check Bedrock token usage
+- [ ] Review cost reports
+- [ ] Check vector database performance
 
 ### Monthly (Manual)
-- [ ] Update Docker images
+- [ ] Update application dependencies
 - [ ] Review security groups
-- [ ] Check AWS free tier usage
-- [ ] Update SSL certificates (if using Let's Encrypt)
+- [ ] Optimize costs
+- [ ] Review X-Ray traces for bottlenecks
 
 ---
 
@@ -728,48 +789,32 @@ cd "AFIRGEN FINAL/terraform/free-tier"
 terraform destroy
 
 # Type 'yes' to confirm
-
-# Verify all resources deleted
-aws ec2 describe-instances --filters "Name=tag:Project,Values=afirgen"
-aws rds describe-db-instances
-aws s3 ls | grep afirgen
 ```
 
-**Warning:** This will permanently delete:
-- All EC2 instances and data
-- RDS database and all FIR records
-- S3 buckets and all files
-- All networking infrastructure
+**Warning:** This will permanently delete all resources and data.
 
 ---
 
 ## Next Steps After Deployment
 
-1. **Test the Application**
-   - Generate a test FIR
-   - Verify speech-to-text works
-   - Test OCR functionality
-   - Check database records
-
-2. **Configure Domain (Optional)**
+1. **Configure Domain (Optional)**
    - Point domain to Elastic IP
    - Set up SSL with Let's Encrypt
    - Update CORS origins
 
-3. **Set Up Monitoring Alerts**
-   - Configure CloudWatch alarms
-   - Set up email notifications
-   - Monitor free tier usage
+2. **Set Up Cost Alerts**
+   - Configure AWS Budgets
+   - Set spending alerts
+   - Monitor daily costs
 
-4. **Optimize Performance**
+3. **Optimize Performance**
    - Review CloudWatch metrics
-   - Adjust resource limits
-   - Optimize model loading
+   - Adjust instance sizes
+   - Tune vector database
 
-5. **Security Hardening**
+4. **Security Hardening**
    - Enable AWS Secrets Manager
-   - Set up VPN for SSH access
-   - Configure WAF (if needed)
+   - Configure WAF
    - Regular security audits
 
 ---
@@ -777,42 +822,31 @@ aws s3 ls | grep afirgen
 ## Support & Resources
 
 **Documentation:**
-- [Terraform Free Tier README](AFIRGEN FINAL/terraform/free-tier/README.md)
-- [Deployment Guide](AFIRGEN FINAL/terraform/free-tier/DEPLOYMENT-GUIDE.md)
-- [Setup Guide](AFIRGEN FINAL/SETUP.md)
-- [Security Documentation](AFIRGEN FINAL/SECURITY.md)
+- [Bedrock Configuration Guide](BEDROCK-CONFIGURATION.md)
+- [Bedrock Troubleshooting Guide](BEDROCK-TROUBLESHOOTING.md)
+- [Cost Estimation Guide](COST-ESTIMATION.md)
+- [Migration Guide](MIGRATION-GUIDE.md)
+- [API Documentation](AFIRGEN FINAL/docs/API.md)
 
 **AWS Resources:**
-- [AWS Free Tier](https://aws.amazon.com/free/)
-- [EC2 Documentation](https://docs.aws.amazon.com/ec2/)
-- [RDS Documentation](https://docs.aws.amazon.com/rds/)
-- [S3 Documentation](https://docs.aws.amazon.com/s3/)
-
-**Terraform:**
-- [Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
-- [Terraform Documentation](https://www.terraform.io/docs)
+- [Amazon Bedrock Documentation](https://docs.aws.amazon.com/bedrock/)
+- [Amazon Transcribe Documentation](https://docs.aws.amazon.com/transcribe/)
+- [Amazon Textract Documentation](https://docs.aws.amazon.com/textract/)
+- [OpenSearch Serverless Documentation](https://docs.aws.amazon.com/opensearch-service/latest/developerguide/serverless.html)
 
 ---
 
 ## Summary
 
-**Automation Level:**
-- 70% automated (infrastructure, setup, monitoring)
-- 30% manual (models, configuration, knowledge base)
+**Deployment Time:** 45-60 minutes
+**Automation Level:** 95%
+**Monthly Cost:** $100-150 (optimized) to $500+ (full features)
+**Scalability:** Auto-scaling with AWS managed services
+**Maintenance:** Minimal (AWS managed)
 
-**Time Investment:**
-- First deployment: 2-3 hours
-- Subsequent deployments: 30-45 minutes
-
-**Cost:**
-- Free for 12 months (within free tier)
-- ~$30-40/month after free tier expires
-
-**Recommended Approach:**
-1. Use Terraform for infrastructure (fully automated)
-2. Use user data script for EC2 setup (automated)
-3. Manually upload models and configure environment
-4. Let application handle database initialization
-5. Set up monitoring and backups (automated)
-
-This gives you the best balance of automation and control!
+**Key Benefits:**
+- ✅ No GPU infrastructure management
+- ✅ Pay only for what you use
+- ✅ Auto-scaling capabilities
+- ✅ AWS managed service reliability
+- ✅ Easy rollback to GGUF if needed

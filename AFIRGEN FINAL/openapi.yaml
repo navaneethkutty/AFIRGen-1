@@ -1,0 +1,1017 @@
+openapi: 3.0.3
+info:
+  title: AFIRGen API
+  description: |
+    Automated First Information Report (FIR) Generation API using AWS Bedrock services.
+    
+    ## Architecture
+    - **Amazon Transcribe**: Audio transcription in 10 Indian languages
+    - **Amazon Textract**: Document OCR for text extraction
+    - **Amazon Bedrock (Claude 3 Sonnet)**: Legal text processing and FIR generation
+    - **Amazon Bedrock (Titan Embeddings)**: Vector embeddings for IPC section search
+    - **Vector Database**: OpenSearch Serverless or Aurora PostgreSQL with pgvector
+    
+    ## Performance Characteristics
+    - Audio transcription: 30-180 seconds for 5-minute files
+    - Document OCR: 5-30 seconds per page
+    - Legal narrative generation: 2-5 seconds
+    - Vector search: 50-200ms
+    - End-to-end FIR generation: 10-60 seconds (text), 40-360 seconds (audio)
+    
+    ## Rate Limiting
+    - Burst tier: 10 requests/minute
+    - Standard tier: 100 requests/minute
+    - Premium tier: 1000 requests/minute
+  version: 8.0.0
+  contact:
+    name: AFIRGen API Support
+    email: api-support@afirgen.example.com
+  license:
+    name: Proprietary
+    url: https://afirgen.example.com/license
+
+servers:
+  - url: https://api.afirgen.example.com
+    description: Production server
+  - url: https://staging-api.afirgen.example.com
+    description: Staging server
+  - url: http://localhost:8000
+    description: Local development server
+
+tags:
+  - name: FIR Processing
+    description: FIR generation and processing endpoints
+  - name: Session Management
+    description: Session status and management
+  - name: FIR Retrieval
+    description: Retrieve and list FIR records
+  - name: Health
+    description: Health check and system status
+
+security:
+  - ApiKeyAuth: []
+  - BearerAuth: []
+
+paths:
+  /process:
+    post:
+      tags:
+        - FIR Processing
+      summary: Process complaint and start FIR generation
+      description: |
+        Start FIR processing with audio, image, or text input.
+        
+        **Processing Pipeline:**
+        1. Audio → Amazon Transcribe → Text → Bedrock Processing
+        2. Image → Amazon Textract → Text → Bedrock Processing
+        3. Text → Bedrock Processing
+        
+        **Bedrock Processing Steps:**
+        1. Generate formal legal narrative (Claude 3 Sonnet)
+        2. Extract structured metadata (Claude 3 Sonnet)
+        3. Generate query embedding (Titan Embeddings)
+        4. Search for relevant IPC sections (Vector DB)
+        5. Generate complete FIR with RAG (Claude 3 Sonnet)
+        
+        **Expected Latency:**
+        - Text input: 10-20 seconds
+        - Audio input: 40-200 seconds (includes transcription)
+        - Image input: 15-40 seconds (includes OCR)
+      operationId: processComplaint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TextProcessRequest'
+            examples:
+              textInput:
+                summary: Text complaint
+                value:
+                  text: "I want to report a theft that occurred yesterday at Central Park. My mobile phone was stolen by two unknown persons around 3 PM."
+          multipart/form-data:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/AudioProcessRequest'
+                - $ref: '#/components/schemas/ImageProcessRequest'
+            examples:
+              audioInput:
+                summary: Audio complaint
+                value:
+                  audio: "(binary file data)"
+              imageInput:
+                summary: Image complaint
+                value:
+                  image: "(binary file data)"
+      responses:
+        '200':
+          description: Processing started successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessResponse'
+              examples:
+                success:
+                  summary: Successful processing start
+                  value:
+                    success: true
+                    session_id: "550e8400-e29b-41d4-a716-446655440000"
+                    steps: ["asr_done"]
+                    requires_validation: true
+                    current_step: "transcript_review"
+                    content_for_validation:
+                      transcript: "I want to report a theft..."
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
+
+  /validate:
+    post:
+      tags:
+        - FIR Processing
+      summary: Validate and approve processing steps
+      description: |
+        Validate and approve processing steps in the FIR generation workflow.
+        
+        **Bedrock Integration:**
+        - When `regenerate=true`, uses Claude 3 Sonnet to regenerate content
+        - Incorporates user feedback into prompts for improved accuracy
+        - Implements retry logic for Bedrock API failures
+        
+        **Validation Steps:**
+        1. transcript_review - Review transcribed/extracted text
+        2. summary_review - Review generated summary
+        3. violations_review - Review identified legal violations
+        4. fir_narrative_review - Review FIR narrative
+        5. final_review - Final FIR review before completion
+        
+        **Expected Latency:** 2-10 seconds per validation step
+      operationId: validateStep
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidateRequest'
+            examples:
+              approve:
+                summary: Approve current step
+                value:
+                  session_id: "550e8400-e29b-41d4-a716-446655440000"
+                  approved: true
+              approveWithInput:
+                summary: Approve with corrections
+                value:
+                  session_id: "550e8400-e29b-41d4-a716-446655440000"
+                  approved: true
+                  user_input: "The incident occurred at 3 PM, not 2 PM"
+              regenerate:
+                summary: Request regeneration
+                value:
+                  session_id: "550e8400-e29b-41d4-a716-446655440000"
+                  approved: false
+                  regenerate: true
+                  user_input: "Please include more details about the suspect"
+      responses:
+        '200':
+          description: Validation successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /session/{session_id}/status:
+    get:
+      tags:
+        - Session Management
+      summary: Get session status
+      description: |
+        Retrieve the current status of a processing session.
+        
+        **Session Status Values:**
+        - `processing` - Initial processing in progress
+        - `awaiting_validation` - Waiting for user validation
+        - `completed` - FIR generation completed
+        - `expired` - Session expired (after 1 hour of inactivity)
+        - `error` - Processing error occurred
+      operationId: getSessionStatus
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          description: Session UUID
+          schema:
+            type: string
+            format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '200':
+          description: Session status retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionStatus'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /regenerate/{session_id}:
+    post:
+      tags:
+        - FIR Processing
+      summary: Regenerate content for a validation step
+      description: |
+        Regenerate content for a specific validation step with additional user input.
+        Uses Claude 3 Sonnet to regenerate content based on user feedback.
+        
+        **Valid Steps:**
+        - summary_review
+        - violations_review
+        - fir_narrative_review
+        
+        **Expected Latency:** 2-10 seconds
+      operationId: regenerateStep
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          description: Session UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegenerateRequest'
+      responses:
+        '200':
+          description: Content regenerated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegenerateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /fir/{fir_number}:
+    get:
+      tags:
+        - FIR Retrieval
+      summary: Get FIR by number
+      description: |
+        Retrieve FIR status and content by FIR number.
+        
+        **FIR Number Format:** FIR-{8hex}-{14digits}
+        Example: FIR-12345678-20240115103000
+      operationId: getFIR
+      parameters:
+        - name: fir_number
+          in: path
+          required: true
+          description: FIR number
+          schema:
+            type: string
+            pattern: '^FIR-[0-9a-f]{8}-\d{14}$'
+          example: "FIR-12345678-20240115103000"
+      responses:
+        '200':
+          description: FIR retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FIRRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /list_firs:
+    get:
+      tags:
+        - FIR Retrieval
+      summary: List FIR records
+      description: |
+        List FIR records with pagination and field filtering.
+        
+        **Available Fields:**
+        - fir_number - FIR identifier
+        - status - FIR status
+        - created_at - Creation timestamp
+        - id - Internal database ID
+      operationId: listFIRs
+      parameters:
+        - name: cursor
+          in: query
+          description: Pagination cursor from previous response
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Number of records per page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: fields
+          in: query
+          description: Comma-separated list of fields to return
+          schema:
+            type: string
+          example: "fir_number,status,created_at"
+      responses:
+        '200':
+          description: FIR list retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FIRList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /authenticate:
+    post:
+      tags:
+        - FIR Processing
+      summary: Finalize FIR
+      description: |
+        Authenticate and finalize a pending FIR.
+        Changes FIR status from 'pending' to 'finalized'.
+      operationId: finalizeFIR
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthenticateRequest'
+      responses:
+        '200':
+          description: FIR finalized successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: |
+        Check API and dependent service health status.
+        
+        **Health Checks:**
+        - **Model Server**: Bedrock service connectivity and model availability
+        - **ASR/OCR Server**: Transcribe and Textract service connectivity
+        - **Database**: MySQL RDS connection status
+        - **Vector Database**: OpenSearch/Aurora pgvector connection status
+        - **Knowledge Base**: IPC section collections and cache status
+        - **Circuit Breakers**: Status of all circuit breakers
+        - **AWS Services**: Regional service availability
+        
+        **Health Status Values:**
+        - `healthy` - All services operational
+        - `degraded` - Some services experiencing issues
+        - `unhealthy` - Critical services unavailable
+      operationId: healthCheck
+      security: []
+      responses:
+        '200':
+          description: Health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+
+  schemas:
+    TextProcessRequest:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          minLength: 10
+          maxLength: 50000
+          description: Text complaint
+          example: "I want to report a theft that occurred yesterday at Central Park."
+
+    AudioProcessRequest:
+      type: object
+      required:
+        - audio
+      properties:
+        audio:
+          type: string
+          format: binary
+          description: Audio file (WAV, MP3, MPEG) - max 25MB
+
+    ImageProcessRequest:
+      type: object
+      required:
+        - image
+      properties:
+        image:
+          type: string
+          format: binary
+          description: Image file (JPEG, PNG) - max 25MB
+
+    ProcessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Whether processing started successfully
+        session_id:
+          type: string
+          format: uuid
+          description: Unique session identifier
+        steps:
+          type: array
+          items:
+            type: string
+          description: Processing steps completed
+        requires_validation:
+          type: boolean
+          description: Whether user validation is required
+        current_step:
+          type: string
+          description: Current validation step
+          enum:
+            - transcript_review
+            - summary_review
+            - violations_review
+            - fir_narrative_review
+            - final_review
+        content_for_validation:
+          type: object
+          description: Content to be validated by user
+
+    ValidateRequest:
+      type: object
+      required:
+        - session_id
+        - approved
+      properties:
+        session_id:
+          type: string
+          format: uuid
+          description: Session ID from /process response
+        approved:
+          type: boolean
+          description: Whether to approve current step
+        user_input:
+          type: string
+          maxLength: 10000
+          description: Additional input or corrections
+        regenerate:
+          type: boolean
+          default: false
+          description: Whether to regenerate content
+
+    ValidateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        session_id:
+          type: string
+          format: uuid
+        current_step:
+          type: string
+        content:
+          type: object
+          description: Content for current step
+        message:
+          type: string
+          description: User-friendly message
+        requires_validation:
+          type: boolean
+          description: Whether more validation is needed
+        completed:
+          type: boolean
+          description: Whether FIR generation is complete
+
+    RegenerateRequest:
+      type: object
+      required:
+        - step
+      properties:
+        step:
+          type: string
+          enum:
+            - summary_review
+            - violations_review
+            - fir_narrative_review
+          description: Validation step to regenerate
+        user_input:
+          type: string
+          maxLength: 10000
+          description: Additional context
+
+    RegenerateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        session_id:
+          type: string
+          format: uuid
+        step:
+          type: string
+        content:
+          type: object
+          description: Regenerated content
+        message:
+          type: string
+
+    SessionStatus:
+      type: object
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - processing
+            - awaiting_validation
+            - completed
+            - expired
+            - error
+        current_step:
+          type: string
+        awaiting_validation:
+          type: boolean
+        validation_history:
+          type: array
+          items:
+            type: object
+            properties:
+              step:
+                type: string
+              content:
+                type: object
+              timestamp:
+                type: string
+                format: date-time
+        created_at:
+          type: string
+          format: date-time
+        last_activity:
+          type: string
+          format: date-time
+
+    FIRRecord:
+      type: object
+      properties:
+        fir_number:
+          type: string
+          description: FIR identifier
+        status:
+          type: string
+          enum:
+            - pending
+            - finalized
+        created_at:
+          type: string
+          format: date-time
+        finalized_at:
+          type: string
+          format: date-time
+          nullable: true
+        fir_content:
+          type: string
+          description: Complete FIR document text
+
+    FIRList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              fir_number:
+                type: string
+              status:
+                type: string
+              created_at:
+                type: string
+                format: date-time
+              id:
+                type: integer
+        pagination:
+          type: object
+          properties:
+            total_count:
+              type: integer
+            limit:
+              type: integer
+            has_more:
+              type: boolean
+            next_cursor:
+              type: string
+              nullable: true
+
+    AuthenticateRequest:
+      type: object
+      required:
+        - fir_number
+        - auth_key
+      properties:
+        fir_number:
+          type: string
+          description: FIR number to finalize
+        auth_key:
+          type: string
+          minLength: 8
+          description: Authentication key
+
+    AuthenticateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        fir_number:
+          type: string
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+            - degraded
+            - unhealthy
+        model_server:
+          type: object
+          properties:
+            status:
+              type: string
+            message:
+              type: string
+            bedrock_models:
+              type: object
+              properties:
+                claude:
+                  type: string
+                  example: "anthropic.claude-3-sonnet-20240229-v1:0"
+                embeddings:
+                  type: string
+                  example: "amazon.titan-embed-text-v1"
+        asr_ocr_server:
+          type: object
+          properties:
+            status:
+              type: string
+            message:
+              type: string
+            services:
+              type: object
+              properties:
+                transcribe:
+                  type: string
+                textract:
+                  type: string
+        database:
+          type: string
+        vector_database:
+          type: object
+          properties:
+            type:
+              type: string
+              enum:
+                - opensearch
+                - aurora_pgvector
+            status:
+              type: string
+            index_count:
+              type: integer
+            document_count:
+              type: integer
+        kb_collections:
+          type: integer
+        kb_cache_size:
+          type: integer
+        session_persistence:
+          type: string
+        magic_available:
+          type: boolean
+        concurrency:
+          type: object
+          properties:
+            max_concurrent_requests:
+              type: integer
+            max_concurrent_model_calls:
+              type: integer
+            http_pool_size:
+              type: integer
+        reliability:
+          type: object
+          properties:
+            circuit_breakers:
+              type: object
+              additionalProperties:
+                type: object
+                properties:
+                  state:
+                    type: string
+                    enum:
+                      - closed
+                      - open
+                      - half_open
+                  failure_count:
+                    type: integer
+                  last_failure:
+                    type: string
+                    format: date-time
+                    nullable: true
+            graceful_shutdown:
+              type: object
+              properties:
+                active_requests:
+                  type: integer
+                shutdown_initiated:
+                  type: boolean
+            health_monitor:
+              type: object
+              properties:
+                status:
+                  type: string
+                last_check:
+                  type: string
+                  format: date-time
+        aws_services:
+          type: object
+          properties:
+            region:
+              type: string
+            bedrock_available:
+              type: boolean
+            transcribe_available:
+              type: boolean
+            textract_available:
+              type: boolean
+            s3_available:
+              type: boolean
+
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string
+          description: Human-readable error message
+        error:
+          type: string
+          description: Machine-readable error code
+        timestamp:
+          type: string
+          format: date-time
+        trace_id:
+          type: string
+          description: X-Ray trace ID for debugging
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            noInput:
+              summary: No input provided
+              value:
+                detail: "No input provided. Please provide text, audio, or image."
+                error: "no_input"
+            textTooShort:
+              summary: Text too short
+              value:
+                detail: "Text input too short. Minimum length: 10 characters"
+                error: "text_too_short"
+            dangerousContent:
+              summary: Dangerous content detected
+              value:
+                detail: "Input contains potentially dangerous content (XSS/injection)"
+                error: "dangerous_content"
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            missingApiKey:
+              summary: Missing API key
+              value:
+                detail: "API key not provided in request headers"
+                error: "missing_api_key"
+            invalidApiKey:
+              summary: Invalid API key
+              value:
+                detail: "Invalid API key"
+                error: "invalid_api_key"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            sessionNotFound:
+              summary: Session not found
+              value:
+                detail: "Session not found or expired"
+                error: "session_not_found"
+            firNotFound:
+              summary: FIR not found
+              value:
+                detail: "FIR not found"
+                error: "fir_not_found"
+
+    PayloadTooLarge:
+      description: Payload too large
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            textTooLong:
+              summary: Text too long
+              value:
+                detail: "Text input exceeds 50,000 characters"
+                error: "text_too_long"
+            fileTooLarge:
+              summary: File too large
+              value:
+                detail: "File exceeds 25MB limit"
+                error: "file_too_large"
+
+    UnsupportedMediaType:
+      description: Unsupported media type
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            unsupportedFormat:
+              summary: Unsupported file format
+              value:
+                detail: "Unsupported file format. Supported formats: WAV, MP3, MPEG for audio; JPEG, PNG for images"
+                error: "unsupported_format"
+
+    TooManyRequests:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          description: Number of seconds to wait before retrying
+          schema:
+            type: integer
+        X-RateLimit-Limit:
+          description: Maximum requests allowed in the current window
+          schema:
+            type: integer
+        X-RateLimit-Remaining:
+          description: Remaining requests in the current window
+          schema:
+            type: integer
+        X-RateLimit-Reset:
+          description: Unix timestamp when the rate limit resets
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            rateLimitExceeded:
+              summary: Rate limit exceeded
+              value:
+                detail: "Rate limit exceeded. Maximum 100 requests per minute allowed. Please try again later."
+                error: "too_many_requests"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            processingError:
+              summary: Processing error
+              value:
+                detail: "Internal processing error"
+                error: "processing_error"
+            transcribeError:
+              summary: Transcribe error
+              value:
+                detail: "Amazon Transcribe service error"
+                error: "transcribe_error"
+            textractError:
+              summary: Textract error
+              value:
+                detail: "Amazon Textract service error"
+                error: "textract_error"
+            bedrockError:
+              summary: Bedrock error
+              value:
+                detail: "Amazon Bedrock service error"
+                error: "bedrock_error"
+            bedrockThrottling:
+              summary: Bedrock throttling
+              value:
+                detail: "Amazon Bedrock rate limit exceeded. Please retry with exponential backoff."
+                error: "bedrock_throttling"
+
+    ServiceUnavailable:
+      description: Service unavailable
+      headers:
+        Retry-After:
+          description: Number of seconds to wait before retrying
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            circuitBreakerOpen:
+              summary: Circuit breaker open
+              value:
+                detail: "Service temporarily unavailable due to repeated failures. Circuit breaker is open."
+                error: "service_unavailable"
+                retry_after: 60
+
+    GatewayTimeout:
+      description: Gateway timeout
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            timeout:
+              summary: Processing timeout
+              value:
+                detail: "Processing timeout. Please retry with a smaller file or simpler request."
+                error: "timeout"

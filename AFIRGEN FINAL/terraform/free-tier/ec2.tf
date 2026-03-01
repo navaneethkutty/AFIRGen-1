@@ -9,117 +9,21 @@
 # - User data script for automated setup
 
 # ============================================================================
-# IAM Role for EC2 Instance
-# ============================================================================
-resource "aws_iam_role" "ec2" {
-  name = "${var.project_name}-${var.environment}-ec2-role"
-  
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-ec2-role"
-    Environment = var.environment
-    ManagedBy   = "Terraform"
-  }
-}
-
-# IAM Policy for S3 Access
-resource "aws_iam_role_policy" "ec2_s3" {
-  name = "${var.project_name}-${var.environment}-ec2-s3-policy"
-  role = aws_iam_role.ec2.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject"
-        ]
-        Resource = [
-          "${aws_s3_bucket.models.arn}/*",
-          "${aws_s3_bucket.temp.arn}/*",
-          "${aws_s3_bucket.backups.arn}/*"
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:ListBucket"
-        ]
-        Resource = [
-          aws_s3_bucket.models.arn,
-          aws_s3_bucket.temp.arn,
-          aws_s3_bucket.backups.arn
-        ]
-      }
-    ]
-  })
-}
-
-# IAM Policy for CloudWatch Logs and Metrics
-resource "aws_iam_role_policy" "ec2_cloudwatch" {
-  name = "${var.project_name}-${var.environment}-ec2-cloudwatch-policy"
-  role = aws_iam_role.ec2.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "cloudwatch:PutMetricData",
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents",
-          "logs:DescribeLogStreams"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-}
-
-# IAM Instance Profile
-resource "aws_iam_instance_profile" "ec2" {
-  name = "${var.project_name}-${var.environment}-ec2-profile"
-  role = aws_iam_role.ec2.name
-
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-ec2-profile"
-    Environment = var.environment
-    ManagedBy   = "Terraform"
-  }
-}
-
-# ============================================================================
 # EC2 Instance
 # ============================================================================
+# Note: IAM role and policies are defined in iam.tf
 resource "aws_instance" "main" {
   ami           = var.ami_id
-  instance_type = "g5.2xlarge"  # GPU: NVIDIA A10G, 24GB VRAM, 32GB RAM - $1.21/hour
+  instance_type = var.ec2_instance_type # t3.small or t3.medium for Bedrock architecture
 
   subnet_id                   = aws_subnet.public.id
   vpc_security_group_ids      = [aws_security_group.ec2.id]
   associate_public_ip_address = true
   iam_instance_profile        = aws_iam_instance_profile.ec2.name
 
-  # 200GB gp3 EBS volume for models and data
+  # 30GB gp3 EBS volume (no GPU models needed)
   root_block_device {
-    volume_size           = 200
+    volume_size           = 30
     volume_type           = "gp3"
     delete_on_termination = true
     encrypted             = true
@@ -132,14 +36,14 @@ resource "aws_instance" "main" {
 
   # User data script for automated setup
   user_data = templatefile("${path.module}/user-data.sh", {
-    aws_region      = var.aws_region
-    models_bucket   = aws_s3_bucket.models.id
-    temp_bucket     = aws_s3_bucket.temp.id
-    backups_bucket  = aws_s3_bucket.backups.id
-    rds_endpoint    = aws_db_instance.main.address
-    db_name         = var.db_name
-    db_username     = var.db_username
-    db_password     = var.db_password
+    aws_region     = var.aws_region
+    models_bucket  = aws_s3_bucket.models.id
+    temp_bucket    = aws_s3_bucket.temp.id
+    backups_bucket = aws_s3_bucket.backups.id
+    rds_endpoint   = aws_db_instance.main.address
+    db_name        = var.db_name
+    db_username    = var.db_username
+    db_password    = var.db_password
   })
 
   # Enable detailed monitoring (free tier: 10 metrics)
@@ -162,8 +66,8 @@ resource "aws_instance" "main" {
 
   lifecycle {
     ignore_changes = [
-      ami,  # Prevent replacement on AMI updates
-      user_data  # Prevent replacement on user data changes
+      ami,      # Prevent replacement on AMI updates
+      user_data # Prevent replacement on user data changes
     ]
   }
 }
@@ -210,11 +114,6 @@ output "ec2_public_ip" {
 output "ec2_elastic_ip" {
   description = "Elastic IP address"
   value       = aws_eip.main.public_ip
-}
-
-output "ec2_iam_role" {
-  description = "IAM role attached to EC2 instance"
-  value       = aws_iam_role.ec2.name
 }
 
 output "ec2_configuration" {

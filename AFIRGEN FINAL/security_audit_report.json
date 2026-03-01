@@ -1,0 +1,82 @@
+{
+  "timestamp": "2026-03-01 14:59:15",
+  "checks": [
+    {
+      "check_name": "S3 SSE-KMS Encryption",
+      "passed": false,
+      "details": "Bucket afirgen-temp-724554528268 does not use SSE-KMS encryption",
+      "severity": "critical",
+      "remediation": "Enable SSE-KMS encryption on S3 bucket"
+    },
+    {
+      "check_name": "RDS Encryption at Rest",
+      "passed": true,
+      "details": "RDS instance afirgen-free-tier-mysql has encryption at rest enabled",
+      "severity": "critical",
+      "remediation": null
+    },
+    {
+      "check_name": "Security Group Configuration",
+      "passed": true,
+      "details": "Security groups follow least privilege principle",
+      "severity": "high",
+      "remediation": null
+    },
+    {
+      "check_name": "IAM Least Privilege",
+      "passed": true,
+      "details": "IAM policies follow least privilege principle",
+      "severity": "high",
+      "remediation": null
+    },
+    {
+      "check_name": "VPC Endpoints Configuration",
+      "passed": false,
+      "details": "Missing VPC endpoints for: com.amazonaws.us-east-1.bedrock-runtime, com.amazonaws.us-east-1.transcribe, com.amazonaws.us-east-1.textract",
+      "severity": "medium",
+      "remediation": "Create VPC endpoints for all AWS services to avoid internet traffic"
+    },
+    {
+      "check_name": "No Hardcoded Credentials",
+      "passed": true,
+      "details": "No hardcoded credentials found in source code",
+      "severity": "critical",
+      "remediation": null
+    },
+    {
+      "check_name": "No PII in Logs",
+      "passed": true,
+      "details": "No PII found in log files",
+      "severity": "high",
+      "remediation": null
+    },
+    {
+      "check_name": "TLS 1.2+ Configuration",
+      "passed": false,
+      "details": "Found 4 TLS configuration issues:\ntest_https_tls.py: SSL verification disabled\ntest_https_tls.py: Old TLS/SSL version referenced\ntests\\validation\\security_audit.py: SSL verification disabled\ntests\\validation\\security_audit.py: Old TLS/SSL version referenced",
+      "severity": "high",
+      "remediation": "Ensure all connections use TLS 1.2+ and SSL verification is enabled"
+    },
+    {
+      "check_name": "RBAC Enforcement",
+      "passed": true,
+      "details": "RBAC implementation found in 4 files",
+      "severity": "high",
+      "remediation": null
+    }
+  ],
+  "critical_failures": 1,
+  "high_failures": 1,
+  "medium_failures": 1,
+  "low_failures": 0,
+  "overall_passed": false,
+  "summary": {
+    "total_checks": 9,
+    "passed": 6,
+    "failed": 3,
+    "critical_failures": 1,
+    "high_failures": 1,
+    "medium_failures": 1,
+    "low_failures": 0
+  }
+}

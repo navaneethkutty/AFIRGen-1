@@ -4,7 +4,7 @@
 
 terraform {
   required_version = ">= 1.0"
-  
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -15,7 +15,7 @@ terraform {
 
 provider "aws" {
   region = var.aws_region
-  
+
   default_tags {
     tags = {
       Project     = "AFIRGen"
@@ -27,27 +27,33 @@ provider "aws" {
 }
 
 # Data sources
-data "aws_caller_identity" "current" {}
+# Note: aws_caller_identity is defined in iam.tf
 data "aws_region" "current" {}
 
 # Outputs
 output "deployment_summary" {
   description = "Summary of deployed free tier resources"
   value = {
-    vpc_id              = aws_vpc.main.id
-    vpc_cidr            = aws_vpc.main.cidr_block
-    public_subnet_id    = aws_subnet.public.id
-    private_subnet_ids  = [aws_subnet.private_1.id, aws_subnet.private_2.id]
-    internet_gateway_id = aws_internet_gateway.main.id
-    s3_endpoint_id      = aws_vpc_endpoint.s3.id
-    ec2_security_group  = aws_security_group.ec2.id
-    rds_security_group  = aws_security_group.rds.id
-    ec2_instance_id     = aws_instance.main.id
-    ec2_public_ip       = aws_eip.main.public_ip
-    rds_instance_id     = aws_db_instance.main.id
-    rds_endpoint        = aws_db_instance.main.endpoint
-    account_id          = data.aws_caller_identity.current.account_id
-    region              = data.aws_region.current.name
+    vpc_id                 = aws_vpc.main.id
+    vpc_cidr               = aws_vpc.main.cidr_block
+    public_subnet_id       = aws_subnet.public.id
+    private_subnet_ids     = [aws_subnet.private_1.id, aws_subnet.private_2.id]
+    internet_gateway_id    = aws_internet_gateway.main.id
+    s3_endpoint_id         = aws_vpc_endpoint.s3.id
+    bedrock_endpoint_id    = aws_vpc_endpoint.bedrock_runtime.id
+    transcribe_endpoint_id = aws_vpc_endpoint.transcribe.id
+    textract_endpoint_id   = aws_vpc_endpoint.textract.id
+    ec2_security_group     = aws_security_group.ec2.id
+    rds_security_group     = aws_security_group.rds.id
+    ec2_instance_id        = aws_instance.main.id
+    ec2_instance_type      = aws_instance.main.instance_type
+    ec2_public_ip          = aws_eip.main.public_ip
+    rds_instance_id        = aws_db_instance.main.id
+    rds_endpoint           = aws_db_instance.main.endpoint
+    vector_db_type         = var.vector_db_type
+    vector_db_endpoint     = var.vector_db_type == "aurora_pgvector" ? try(aws_rds_cluster.vector[0].endpoint, null) : try(aws_opensearchserverless_collection.vector[0].collection_endpoint, null)
+    account_id             = data.aws_caller_identity.current.account_id
+    region                 = data.aws_region.current.name
   }
 }
 

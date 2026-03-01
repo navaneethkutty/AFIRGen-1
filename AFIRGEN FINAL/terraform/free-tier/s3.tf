@@ -45,14 +45,16 @@ resource "aws_s3_bucket_website_configuration" "frontend" {
   }
 }
 
-# Enable SSE-S3 encryption for frontend bucket
+# Enable SSE-KMS encryption for frontend bucket
 resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
   bucket = aws_s3_bucket.frontend.id
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.main.arn
     }
+    bucket_key_enabled = true
   }
 }
 
@@ -107,14 +109,16 @@ resource "aws_s3_bucket_versioning" "models" {
   }
 }
 
-# Enable SSE-S3 encryption for models bucket
+# Enable SSE-KMS encryption for models bucket
 resource "aws_s3_bucket_server_side_encryption_configuration" "models" {
   bucket = aws_s3_bucket.models.id
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.main.arn
     }
+    bucket_key_enabled = true
   }
 }
 
@@ -144,14 +148,16 @@ resource "aws_s3_bucket" "temp" {
   }
 }
 
-# Enable SSE-S3 encryption for temp bucket
+# Enable SSE-KMS encryption for temp bucket
 resource "aws_s3_bucket_server_side_encryption_configuration" "temp" {
   bucket = aws_s3_bucket.temp.id
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.main.arn
     }
+    bucket_key_enabled = true
   }
 }
 
@@ -211,14 +217,16 @@ resource "aws_s3_bucket_versioning" "backups" {
   }
 }
 
-# Enable SSE-S3 encryption for backups bucket
+# Enable SSE-KMS encryption for backups bucket
 resource "aws_s3_bucket_server_side_encryption_configuration" "backups" {
   bucket = aws_s3_bucket.backups.id
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.main.arn
     }
+    bucket_key_enabled = true
   }
 }
 
@@ -273,10 +281,10 @@ output "s3_buckets" {
   description = "S3 bucket names and ARNs"
   value = {
     frontend = {
-      name                = aws_s3_bucket.frontend.id
-      arn                 = aws_s3_bucket.frontend.arn
-      website_endpoint    = aws_s3_bucket_website_configuration.frontend.website_endpoint
-      website_domain      = aws_s3_bucket_website_configuration.frontend.website_domain
+      name             = aws_s3_bucket.frontend.id
+      arn              = aws_s3_bucket.frontend.arn
+      website_endpoint = aws_s3_bucket_website_configuration.frontend.website_endpoint
+      website_domain   = aws_s3_bucket_website_configuration.frontend.website_domain
     }
     models = {
       name = aws_s3_bucket.models.id

@@ -143,7 +143,7 @@ resource "aws_route_table_association" "private_2" {
 resource "aws_vpc_endpoint" "s3" {
   vpc_id       = aws_vpc.main.id
   service_name = "com.amazonaws.${var.aws_region}.s3"
-  
+
   route_table_ids = [
     aws_route_table.private.id,
     aws_route_table.public.id
@@ -154,6 +154,90 @@ resource "aws_vpc_endpoint" "s3" {
     Environment = "free-tier"
     ManagedBy   = "Terraform"
     Cost        = "Free"
+  }
+}
+
+# ============================================================================
+# VPC Endpoints for AWS Services (Interface Endpoints)
+# ============================================================================
+
+# Security Group for VPC Endpoints
+resource "aws_security_group" "vpc_endpoints" {
+  name        = "${var.project_name}-${var.environment}-vpc-endpoints-sg"
+  description = "Security group for VPC endpoints"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description = "HTTPS from VPC"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+  }
+
+  egress {
+    description = "All outbound traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-vpc-endpoints-sg"
+    Environment = var.environment
+    ManagedBy   = "Terraform"
+  }
+}
+
+# Bedrock Runtime VPC Endpoint
+resource "aws_vpc_endpoint" "bedrock_runtime" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${var.aws_region}.bedrock-runtime"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [aws_subnet.private_1.id, aws_subnet.private_2.id]
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-bedrock-runtime-endpoint"
+    Environment = var.environment
+    ManagedBy   = "Terraform"
+    Service     = "Bedrock"
+  }
+}
+
+# Transcribe VPC Endpoint
+resource "aws_vpc_endpoint" "transcribe" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${var.aws_region}.transcribe"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [aws_subnet.private_1.id, aws_subnet.private_2.id]
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-transcribe-endpoint"
+    Environment = var.environment
+    ManagedBy   = "Terraform"
+    Service     = "Transcribe"
+  }
+}
+
+# Textract VPC Endpoint
+resource "aws_vpc_endpoint" "textract" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${var.aws_region}.textract"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [aws_subnet.private_1.id, aws_subnet.private_2.id]
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-textract-endpoint"
+    Environment = var.environment
+    ManagedBy   = "Terraform"
+    Service     = "Textract"
   }
 }
 
@@ -198,4 +282,24 @@ output "internet_gateway_id" {
 output "s3_endpoint_id" {
   description = "S3 Gateway VPC Endpoint ID"
   value       = aws_vpc_endpoint.s3.id
+}
+
+output "bedrock_endpoint_id" {
+  description = "Bedrock Runtime VPC Endpoint ID"
+  value       = aws_vpc_endpoint.bedrock_runtime.id
+}
+
+output "transcribe_endpoint_id" {
+  description = "Transcribe VPC Endpoint ID"
+  value       = aws_vpc_endpoint.transcribe.id
+}
+
+output "textract_endpoint_id" {
+  description = "Textract VPC Endpoint ID"
+  value       = aws_vpc_endpoint.textract.id
+}
+
+output "vpc_endpoints_security_group_id" {
+  description = "Security group ID for VPC endpoints"
+  value       = aws_security_group.vpc_endpoints.id
 }

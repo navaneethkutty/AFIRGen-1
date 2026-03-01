@@ -26,7 +26,7 @@ variable "environment" {
 variable "admin_ip" {
   description = "Administrator IP address for SSH access (CIDR notation, e.g., 203.0.113.0/32)"
   type        = string
-  
+
   validation {
     condition     = can(cidrhost(var.admin_ip, 0))
     error_message = "admin_ip must be a valid CIDR block (e.g., 203.0.113.0/32)."
@@ -34,10 +34,21 @@ variable "admin_ip" {
 }
 
 # EC2 Configuration
+variable "ec2_instance_type" {
+  description = "EC2 instance type (t3.small or t3.medium for Bedrock architecture)"
+  type        = string
+  default     = "t3.small"
+
+  validation {
+    condition     = contains(["t3.small", "t3.medium"], var.ec2_instance_type)
+    error_message = "ec2_instance_type must be either t3.small or t3.medium for Bedrock architecture."
+  }
+}
+
 variable "ami_id" {
   description = "AMI ID for EC2 instance (Ubuntu 22.04 LTS recommended)"
   type        = string
-  
+
   # To find the latest Ubuntu 22.04 AMI in your region:
   # aws ec2 describe-images --owners 099720109477 \
   #   --filters "Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*" \
@@ -70,11 +81,42 @@ variable "db_password" {
   sensitive   = true
 }
 
+# Vector Database Configuration
+variable "vector_db_type" {
+  description = "Vector database type: opensearch or aurora_pgvector"
+  type        = string
+  default     = "aurora_pgvector"
+
+  validation {
+    condition     = contains(["opensearch", "aurora_pgvector"], var.vector_db_type)
+    error_message = "vector_db_type must be either 'opensearch' or 'aurora_pgvector'."
+  }
+}
+
+variable "vector_db_name" {
+  description = "Vector database name"
+  type        = string
+  default     = "afirgen_vectors"
+}
+
+variable "vector_db_username" {
+  description = "Vector database username (for Aurora pgvector)"
+  type        = string
+  default     = "vector_admin"
+  sensitive   = true
+}
+
+variable "vector_db_password" {
+  description = "Vector database password (for Aurora pgvector)"
+  type        = string
+  sensitive   = true
+}
+
 locals {
-  vpc_cidr             = "10.0.0.0/16"
-  public_subnet_cidr   = "10.0.1.0/24"
+  vpc_cidr              = "10.0.0.0/16"
+  public_subnet_cidr    = "10.0.1.0/24"
   private_subnet_1_cidr = "10.0.11.0/24"
   private_subnet_2_cidr = "10.0.12.0/24"
-  availability_zone_1  = "${var.aws_region}a"
-  availability_zone_2  = "${var.aws_region}b"
+  availability_zone_1   = "${var.aws_region}a"
+  availability_zone_2   = "${var.aws_region}b"
 }

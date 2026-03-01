@@ -1,0 +1,80 @@
+{
+  "timestamp": "2026-03-01 14:56:36",
+  "period_hours": 24.0,
+  "baseline_cost_usd": 29.04,
+  "total_cost_usd": 1.9399666666666666,
+  "cost_savings_usd": 27.100033333333332,
+  "cost_savings_percent": 93.31967401285584,
+  "service_costs": [
+    {
+      "service": "Amazon Transcribe",
+      "cost_usd": 0.0,
+      "usage_details": {
+        "total_minutes": 0.0,
+        "rate_per_minute": 0.024
+      }
+    },
+    {
+      "service": "Amazon Textract",
+      "cost_usd": 0.0,
+      "usage_details": {
+        "total_pages": 0.0,
+        "rate_per_page": 0.0015
+      }
+    },
+    {
+      "service": "Amazon Bedrock",
+      "cost_usd": 0.0,
+      "usage_details": {
+        "claude_input_tokens": 0.0,
+        "claude_output_tokens": 0.0,
+        "titan_embedding_tokens": 0.0,
+        "claude_input_cost": 0.0,
+        "claude_output_cost": 0.0,
+        "titan_cost": 0.0
+      }
+    },
+    {
+      "service": "Aurora PostgreSQL (pgvector)",
+      "cost_usd": 1.44,
+      "usage_details": {
+        "hours": 24.0,
+        "acu_count": 0.5,
+        "rate_per_acu_hour": 0.12
+      }
+    },
+    {
+      "service": "EC2 (t3.medium)",
+      "cost_usd": 0.4992,
+      "usage_details": {
+        "hours": 24.0,
+        "instance_type": "t3.medium",
+        "hourly_rate": 0.0208
+      }
+    },
+    {
+      "service": "Amazon S3",
+      "cost_usd": 0.0007666666666666667,
+      "usage_details": {
+        "put_requests": 0.0,
+        "get_requests": 0.0,
+        "storage_gb_months": 0.03333333333333333,
+        "put_cost": 0.0,
+        "get_cost": 0.0,
+        "storage_cost": 0.0007666666666666667
+      }
+    }
+  ],
+  "cost_breakdown": {
+    "Amazon Transcribe": 0.0,
+    "Amazon Textract": 0.0,
+    "Amazon Bedrock": 0.0,
+    "Aurora PostgreSQL (pgvector)": 1.44,
+    "EC2 (t3.medium)": 0.4992,
+    "Amazon S3": 0.0007666666666666667
+  },
+  "optimization_opportunities": [
+    "Cost distribution is well-balanced. Continue monitoring for anomalies."
+  ],
+  "passed": true
+}

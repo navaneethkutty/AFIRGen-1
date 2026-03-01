@@ -30,7 +30,7 @@ resource "aws_security_group" "ec2" {
 resource "aws_vpc_security_group_ingress_rule" "ec2_http" {
   security_group_id = aws_security_group.ec2.id
   description       = "Allow HTTP traffic from internet"
-  
+
   from_port   = 80
   to_port     = 80
   ip_protocol = "tcp"
@@ -44,7 +44,7 @@ resource "aws_vpc_security_group_ingress_rule" "ec2_http" {
 resource "aws_vpc_security_group_ingress_rule" "ec2_https" {
   security_group_id = aws_security_group.ec2.id
   description       = "Allow HTTPS traffic from internet"
-  
+
   from_port   = 443
   to_port     = 443
   ip_protocol = "tcp"
@@ -58,7 +58,7 @@ resource "aws_vpc_security_group_ingress_rule" "ec2_https" {
 resource "aws_vpc_security_group_ingress_rule" "ec2_ssh" {
   security_group_id = aws_security_group.ec2.id
   description       = "Allow SSH access from admin IP only"
-  
+
   from_port   = 22
   to_port     = 22
   ip_protocol = "tcp"
@@ -73,7 +73,7 @@ resource "aws_vpc_security_group_ingress_rule" "ec2_ssh" {
 resource "aws_vpc_security_group_egress_rule" "ec2_all" {
   security_group_id = aws_security_group.ec2.id
   description       = "Allow all outbound traffic"
-  
+
   ip_protocol = "-1"
   cidr_ipv4   = "0.0.0.0/0"
 
@@ -102,7 +102,7 @@ resource "aws_security_group" "rds" {
 resource "aws_vpc_security_group_ingress_rule" "rds_mysql" {
   security_group_id = aws_security_group.rds.id
   description       = "Allow MySQL access from EC2 security group only"
-  
+
   from_port                    = 3306
   to_port                      = 3306
   ip_protocol                  = "tcp"
@@ -117,7 +117,7 @@ resource "aws_vpc_security_group_ingress_rule" "rds_mysql" {
 resource "aws_vpc_security_group_egress_rule" "rds_all" {
   security_group_id = aws_security_group.rds.id
   description       = "Allow all outbound traffic"
-  
+
   ip_protocol = "-1"
   cidr_ipv4   = "0.0.0.0/0"
 

@@ -101,3 +101,60 @@ variable "enable_cloudwatch_alarms" {
   type        = bool
   default     = true
 }
+
+# Monitoring and Alerting
+variable "monthly_budget_threshold" {
+  description = "Monthly budget threshold in USD for billing alarms"
+  type        = number
+  default     = 100
+}
+
+variable "alert_email" {
+  description = "Email address for receiving alerts and notifications"
+  type        = string
+  default     = "admin@example.com"
+}
+
+# Performance Optimization
+variable "enable_s3_transfer_acceleration" {
+  description = "Enable S3 Transfer Acceleration for faster uploads"
+  type        = bool
+  default     = false
+}
+
+variable "enable_rds_performance_insights" {
+  description = "Enable RDS Performance Insights (may incur additional costs)"
+  type        = bool
+  default     = false
+}
+
+variable "cloudwatch_log_retention_days" {
+  description = "Number of days to retain CloudWatch logs"
+  type        = number
+  default     = 7
+}
+
+# Bedrock Configuration
+variable "bedrock_model_id" {
+  description = "Bedrock model ID for FIR generation"
+  type        = string
+  default     = "anthropic.claude-3-sonnet-20240229-v1:0"
+}
+
+variable "bedrock_embeddings_model_id" {
+  description = "Bedrock embeddings model ID"
+  type        = string
+  default     = "amazon.titan-embed-text-v1"
+}
+
+# Vector Database Configuration
+variable "vector_db_type" {
+  description = "Vector database type (opensearch or aurora_pgvector)"
+  type        = string
+  default     = "aurora_pgvector"
+  
+  validation {
+    condition     = contains(["opensearch", "aurora_pgvector"], var.vector_db_type)
+    error_message = "Vector DB type must be opensearch or aurora_pgvector."
+  }
+}

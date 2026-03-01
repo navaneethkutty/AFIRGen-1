@@ -215,14 +215,30 @@ def get_session_service(
     Validates: Requirements 8.2
     """
     # Import here to avoid circular dependency
-    from agentv5 import PersistentSessionManager
+    from agentv5 import PersistentSessionManager, get_fir_generation_service, ModelPool
+    from config.settings import get_settings
     
     # Create session manager with database
-    # Note: This is a temporary solution. SessionService should be refactored
-    # to accept dependencies directly.
     session_manager = PersistentSessionManager(db_path="sessions.db")
     
-    return SessionService(session_manager=session_manager)
+    # Get Bedrock services if enabled
+    settings = get_settings()
+    fir_generation_service = None
+    legacy_model_pool = None
+    
+    if settings.enable_bedrock:
+        fir_generation_service = get_fir_generation_service()
+        _logger.info("SessionService using Bedrock implementation")
+    else:
+        # For GGUF implementation, we'd need the ModelPool
+        # This is a placeholder - actual implementation would get it from app state
+        _logger.info("SessionService using GGUF implementation")
+    
+    return SessionService(
+        session_manager=session_manager,
+        fir_generation_service=fir_generation_service,
+        legacy_model_pool=legacy_model_pool
+    )
 
 
 def get_model_service(

@@ -40,7 +40,7 @@ resource "aws_db_parameter_group" "main" {
 
   parameter {
     name  = "innodb_buffer_pool_size"
-    value = "536870912"  # 512MB in bytes
+    value = "536870912" # 512MB in bytes
   }
 
   # Enable slow query log for optimization
@@ -74,14 +74,15 @@ resource "aws_db_instance" "main" {
   # Instance Configuration
   identifier     = "${var.project_name}-${var.environment}-mysql"
   engine         = "mysql"
-  engine_version = "8.0.40"  # Available in ap-south-1
-  instance_class = "db.t3.micro"  # Free Tier: 750 hours/month
+  engine_version = "8.0.40"      # Available in ap-south-1
+  instance_class = "db.t3.micro" # Free Tier: 750 hours/month
 
   # Storage Configuration (Requirement 5.1)
-  allocated_storage     = 20  # Free Tier limit: 20GB
-  max_allocated_storage = 20  # Prevent auto-scaling beyond free tier
+  allocated_storage     = 20 # Free Tier limit: 20GB
+  max_allocated_storage = 20 # Prevent auto-scaling beyond free tier
   storage_type          = "gp2"
-  storage_encrypted     = true  # Requirement 9.3: Encryption at rest
+  storage_encrypted     = true                 # Requirement 9.3: Encryption at rest
+  kms_key_id            = aws_kms_key.main.arn # Use customer-managed KMS key
 
   # Database Configuration
   db_name  = var.db_name
@@ -98,16 +99,16 @@ resource "aws_db_instance" "main" {
   parameter_group_name = aws_db_parameter_group.main.name
 
   # Backup Configuration (Requirements 15.1, 15.2)
-  backup_retention_period = 1  # 1-day retention (Free Tier limit)
-  backup_window           = "03:00-04:00"  # UTC, low-traffic window
-  maintenance_window      = "sun:04:00-sun:05:00"  # UTC, after backup
+  backup_retention_period = 1                     # 1-day retention (Free Tier limit)
+  backup_window           = "03:00-04:00"         # UTC, low-traffic window
+  maintenance_window      = "sun:04:00-sun:05:00" # UTC, after backup
 
   # High Availability (Disabled for Free Tier)
-  multi_az = false  # Not available in Free Tier
+  multi_az = false # Not available in Free Tier
 
   # Deletion Protection
-  deletion_protection       = false  # Set to true in production
-  skip_final_snapshot       = true   # Set to false in production
+  deletion_protection       = false # Set to true in production
+  skip_final_snapshot       = true  # Set to false in production
   final_snapshot_identifier = "${var.project_name}-${var.environment}-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
 
   # Performance Insights (Not available in Free Tier)
@@ -129,8 +130,8 @@ resource "aws_db_instance" "main" {
 
   lifecycle {
     # Prevent accidental deletion
-    prevent_destroy = false  # Set to true in production
-    
+    prevent_destroy = false # Set to true in production
+
     # Ignore password changes (manage via AWS Secrets Manager in production)
     ignore_changes = [password]
   }
@@ -148,16 +149,16 @@ resource "aws_cloudwatch_metric_alarm" "rds_storage" {
   evaluation_periods  = 1
   metric_name         = "FreeStorageSpace"
   namespace           = "AWS/RDS"
-  period              = 300  # 5 minutes
+  period              = 300 # 5 minutes
   statistic           = "Average"
-  threshold           = 2147483648  # 2GB remaining (18GB used)
+  threshold           = 2147483648 # 2GB remaining (18GB used)
   treat_missing_data  = "notBreaching"
 
   dimensions = {
     DBInstanceIdentifier = aws_db_instance.main.id
   }
 
-  alarm_actions = []  # Add SNS topic ARN for notifications
+  alarm_actions = [] # Add SNS topic ARN for notifications
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-rds-storage-alarm"
@@ -174,7 +175,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu" {
   evaluation_periods  = 2
   metric_name         = "CPUUtilization"
   namespace           = "AWS/RDS"
-  period              = 300  # 5 minutes
+  period              = 300 # 5 minutes
   statistic           = "Average"
   threshold           = 90
   treat_missing_data  = "notBreaching"
@@ -183,7 +184,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu" {
     DBInstanceIdentifier = aws_db_instance.main.id
   }
 
-  alarm_actions = []  # Add SNS topic ARN for notifications
+  alarm_actions = [] # Add SNS topic ARN for notifications
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-rds-cpu-alarm"
@@ -200,7 +201,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_connections" {
   evaluation_periods  = 2
   metric_name         = "DatabaseConnections"
   namespace           = "AWS/RDS"
-  period              = 300  # 5 minutes
+  period              = 300 # 5 minutes
   statistic           = "Average"
   threshold           = 40
   treat_missing_data  = "notBreaching"
@@ -209,7 +210,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_connections" {
     DBInstanceIdentifier = aws_db_instance.main.id
   }
 
-  alarm_actions = []  # Add SNS topic ARN for notifications
+  alarm_actions = [] # Add SNS topic ARN for notifications
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-rds-connections-alarm"
