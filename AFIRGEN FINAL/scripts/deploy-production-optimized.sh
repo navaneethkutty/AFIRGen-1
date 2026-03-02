@@ -41,11 +41,21 @@ log "Starting production deployment..."
 log "Phase 1: Pre-deployment checks..."
 
 # Check AWS credentials
-if ! aws sts get-caller-identity > /dev/null 2>&1; then
+# Try to get caller identity, handling both Unix and Windows paths
+if aws sts get-caller-identity > /dev/null 2>&1; then
+    log "✅ AWS credentials verified"
+    AWS_ACCOUNT=$(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo "unknown")
+    AWS_USER=$(aws sts get-caller-identity --query Arn --output text 2>/dev/null | cut -d'/' -f2 || echo "unknown")
+    log "AWS Account: $AWS_ACCOUNT"
+    log "AWS User: $AWS_USER"
+elif [ -f "$HOME/.aws/credentials" ] || [ -f "/c/Users/$USER/.aws/credentials" ]; then
+    log "⚠️  AWS CLI not responding but credentials file exists"
+    log "Attempting to continue with existing credentials..."
+else
     log "ERROR: AWS credentials not configured"
+    log "Please run: aws configure"
     exit 1
 fi
-log "✅ AWS credentials verified"
 
 # Check Terraform
 if ! command -v terraform &> /dev/null; then

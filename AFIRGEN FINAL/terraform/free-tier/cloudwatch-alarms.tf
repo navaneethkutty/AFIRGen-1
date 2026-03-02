@@ -39,7 +39,7 @@ resource "aws_cloudwatch_metric_alarm" "ec2_high_cpu" {
   alarm_actions       = [aws_sns_topic.alerts.arn]
 
   dimensions = {
-    InstanceId = aws_instance.app_server.id
+    InstanceId = aws_instance.main.id
   }
 
   tags = {
@@ -62,7 +62,7 @@ resource "aws_cloudwatch_metric_alarm" "ec2_status_check" {
   alarm_actions       = [aws_sns_topic.alerts.arn]
 
   dimensions = {
-    InstanceId = aws_instance.app_server.id
+    InstanceId = aws_instance.main.id
   }
 
   tags = {

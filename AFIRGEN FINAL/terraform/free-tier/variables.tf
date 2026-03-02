@@ -120,3 +120,36 @@ locals {
   availability_zone_1   = "${var.aws_region}a"
   availability_zone_2   = "${var.aws_region}b"
 }
+
+# CloudWatch Monitoring Configuration
+variable "alert_email" {
+  description = "Email address for CloudWatch alarm notifications"
+  type        = string
+  
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", var.alert_email))
+    error_message = "alert_email must be a valid email address."
+  }
+}
+
+variable "monthly_budget_threshold" {
+  description = "Monthly budget threshold in USD for billing alarm"
+  type        = number
+  default     = 100
+  
+  validation {
+    condition     = var.monthly_budget_threshold > 0
+    error_message = "monthly_budget_threshold must be greater than 0."
+  }
+}
+
+# Tags
+variable "tags" {
+  description = "Common tags to apply to all resources"
+  type        = map(string)
+  default = {
+    Project     = "AFIRGen"
+    Environment = "Production"
+    ManagedBy   = "Terraform"
+  }
+}
