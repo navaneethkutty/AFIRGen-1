@@ -1,38 +1,30 @@
-chromadb==1.0.20
-fastapi==0.116.1
-httpx==0.28.1
-mysql_connector_repackaged==0.3.1
-pydantic==2.11.7
-python_magic==0.4.27
-uvicorn==0.35.0
-llama-cpp-python==0.3.1  
-openai-whisper==20240930
-transformers==4.52.4
-torch==2.7.1
-filelock==3.16.1
-Pillow==11.3.0
-ffmpeg-python==0.2.0
-boto3==1.35.94
-aws-xray-sdk==2.14.0
+# AFIRGen Backend - Minimal AWS Dependencies
+# Core FastAPI and server
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.10.0
 
-# Backend Optimization Dependencies
-redis==5.2.1
-celery==5.4.0
-hypothesis==6.122.3
-prometheus-client==0.21.1
-structlog==24.4.0
-psutil==6.1.1
+# AWS SDK
+boto3>=1.35.0
 
-# OpenTelemetry Dependencies
-opentelemetry-api==1.29.0
-opentelemetry-sdk==1.29.0
-opentelemetry-instrumentation-fastapi==0.50b0
-opentelemetry-instrumentation-httpx==0.50b0
-opentelemetry-instrumentation-redis==0.50b0
-opentelemetry-instrumentation-mysql==0.50b0
-opentelemetry-instrumentation-celery==0.50b0
-opentelemetry-exporter-otlp==1.29.0
+# Database
+mysql-connector-python>=9.1.0
 
-# Performance Testing Dependencies
-pytest-benchmark==5.1.0
-locust==2.33.0
+# File handling
+python-multipart>=0.0.20
+Pillow>=11.0.0
+
+# HTTP client
+httpx>=0.28.0
+
+# PDF generation
+reportlab>=4.2.0
+
+# Testing
+pytest>=8.3.0
+pytest-asyncio>=0.24.0
+pytest-cov>=6.0.0
+hypothesis>=6.120.0
+python-dotenv>=1.0.0
+
+

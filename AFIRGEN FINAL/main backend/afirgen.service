@@ -1,0 +1,32 @@
+[Unit]
+Description=AFIRGen Backend Service - Automated FIR Generation
+Documentation=https://github.com/your-repo/afirgen
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/afirgen-backend/AFIRGEN FINAL/main backend
+Environment="PATH=/home/ubuntu/afirgen-backend/AFIRGEN FINAL/main backend/venv/bin"
+EnvironmentFile=/home/ubuntu/afirgen-backend/AFIRGEN FINAL/main backend/.env
+ExecStart=/home/ubuntu/afirgen-backend/AFIRGEN FINAL/main backend/venv/bin/uvicorn agentv5:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/ubuntu/afirgen-backend/AFIRGEN FINAL/main backend/logs/systemd.log
+StandardError=append:/home/ubuntu/afirgen-backend/AFIRGEN FINAL/main backend/logs/systemd-error.log
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/ubuntu/afirgen-backend/AFIRGEN FINAL/main backend/logs
+ReadWritePaths=/home/ubuntu/afirgen-backend/AFIRGEN FINAL/main backend/sessions.db
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target

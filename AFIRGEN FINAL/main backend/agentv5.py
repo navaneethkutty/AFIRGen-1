@@ -1,2988 +1,2554 @@
-# fir_pipeline_production_ready.py
-# -------------------------------------------------------------
-# FIR Pipeline with Production Fixes - Race Conditions, Memory Leaks, etc.
-# -------------------------------------------------------------
-import httpx
-import asyncio
-from typing import Optional
+"""
+AFIRGen Backend - AWS Bedrock Architecture
+Minimal, production-ready FIR generation system
+
+This is a clean implementation using only AWS managed services:
+- AWS Bedrock (Claude 3 Sonnet) for text generation
+- AWS Transcribe for audio transcription
+- AWS Textract for document OCR
+- Amazon RDS MySQL for persistent storage
+- Amazon S3 for temporary file storage
+- SQLite for session management
+"""
+
+# ============================================================================
+# IMPORTS
+# ============================================================================
 import os
+import sys
 import json
-import logging
 import uuid
-import asyncio
-import re
-import string
-import gc
+import time
+import logging
 import sqlite3
 import threading
-import signal
-from pathlib import Path
-from typing import Optional, Dict, List, Any, Union
+import asyncio
+import io
 from datetime import datetime, timedelta
-from contextlib import contextmanager, asynccontextmanager
-from enum import Enum
+from typing import Optional, Literal, Dict, List, Any
+from pathlib import Path
+from contextlib import asynccontextmanager
 
-import chromadb
-from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks
-from fastapi.responses import HTMLResponse
+import boto3
+from botocore.exceptions import ClientError
+import mysql.connector
+from mysql.connector import pooling
+from fastapi import FastAPI, File, UploadFile, Header, HTTPException, Request, Query
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
-
-# Import reliability components
-from reliability import CircuitBreaker, RetryPolicy, HealthMonitor, GracefulShutdown, AutoRecovery, DependencyHealthCheck
-
-# Import input validation
-from input_validation import (
-    ValidationConstants,
-    sanitize_text,
-    validate_file_upload,
-    ValidationStep,
-    ProcessRequest,
-    ValidationRequest as ValidatedValidationRequest,
-    RegenerateRequest,
-    AuthRequest as ValidatedAuthRequest,
-    CircuitBreakerResetRequest,
-    validate_session_id_param,
-    validate_fir_number_param,
-    validate_circuit_breaker_name,
-    validate_recovery_name,
-    validate_limit_param,
-    validate_offset_param,
-    validate_request_size,
-    validate_json_depth,
-    FIRResp,
-    ValidationResponse,
-    AuthResponse,
-    ErrorResponse
-)
-
-# Import structured JSON logging
-from json_logging import (
-    setup_json_logging,
-    log_with_context,
-    log_request,
-    log_response,
-    log_error,
-    log_performance,
-    log_security_event
-)
-
-# Import CloudWatch metrics
-from cloudwatch_metrics import (
-    get_metrics,
-    record_api_request,
-    record_fir_generation,
-    record_model_inference,
-    record_database_operation,
-    record_cache_operation,
-    record_rate_limit_event,
-    record_auth_event,
-    record_health_check
-)
-
-# Import X-Ray tracing
-from xray_tracing import (
-    setup_xray,
-    trace_subsegment,
-    add_trace_annotation,
-    add_trace_metadata,
-    AsyncXRaySubsegment,
-    get_trace_id
-)
-
-# Import background task management
-from infrastructure.background_task_manager import BackgroundTaskManager
-from infrastructure.tasks.base_task import DatabaseTask
-from services.fir_service import FIRService
-
-# Import metrics collection
-from infrastructure.metrics import MetricsCollector
-
-# Import Bedrock services
-from config.settings import get_settings
-from services.fir_generation_service import FIRGenerationService
-from services.aws.transcribe_client import TranscribeClient
-from services.aws.textract_client import TextractClient
-from services.aws.bedrock_client import BedrockClient
-from services.aws.titan_embeddings_client import TitanEmbeddingsClient
-from services.vector_db.factory import VectorDBFactory
-from services.cache.ipc_cache import IPCCache
-from services.resilience.retry_handler import RetryHandler
-from services.resilience.circuit_breaker import CircuitBreaker as BedrockCircuitBreaker
-from services.monitoring.metrics_collector import MetricsCollector as BedrockMetricsCollector
-from services.monitoring.logger import get_structured_logger
-
-# Try to import python-magic, fallback to basic validation
-try:
-    import magic
-    MAGIC_AVAILABLE = True
-except ImportError:
-    MAGIC_AVAILABLE = False
-    # Will log this after logger is configured
-
-# Import secrets manager
-from infrastructure.secrets_manager import get_secret
-
-# ------------------------------------------------------------- CONFIGURATION DICTIONARY    
-CFG = {
-    "max_file_size": 25 * 1024 * 1024,
-    "max_text_len": 50_000,
-    "temp_dir": Path("temp_files"),
-    "session_timeout": 3600,
-    "session_db_path": "sessions.db",  # SQLite for session persistence
-    "mysql": {
-        "host": os.getenv("MYSQL_HOST", "localhost"),
-        "port": int(os.getenv("MYSQL_PORT", 3306)),
-        "user": get_secret("MYSQL_USER", default="root"),
-        "password": get_secret("MYSQL_PASSWORD", required=True),
-        "database": get_secret("MYSQL_DB", default="fir_db"),
-        "charset": "utf8mb4",
-        "autocommit": False,  # ZERO DATA LOSS: Disable autocommit for transaction support
-        "pool_size": 15,  # CONCURRENCY: Increased for 10+ concurrent requests
-        "pool_reset_session": True,  # FIX: Reset session on connection return
-    },
-    "concurrency": {
-        "max_concurrent_requests": int(os.getenv("MAX_CONCURRENT_REQUESTS", 15)),  # Allow 15 concurrent FIR generations
-        "max_concurrent_model_calls": int(os.getenv("MAX_CONCURRENT_MODEL_CALLS", 10)),  # Limit concurrent model inference
-        "http_pool_connections": 20,  # HTTP connection pool size
-        "http_pool_maxsize": 20,  # Max connections per host
-    },
-    "chroma": {"persist_dir": "./chroma_kb"},
-    "kb_dir": Path("./kb"),
-    "allowed_image": {"image/jpeg", "image/png", "image/jpg"},
-    "allowed_audio": {"audio/wav", "audio/mpeg", "audio/mp3"},
-    "allowed_extensions": {".jpg", ".jpeg", ".png", ".wav", ".mp3", ".mpeg"},
-    "auth_key": get_secret("FIR_AUTH_KEY", required=True),
-    "api_key": get_secret("API_KEY", required=True),  # CRITICAL FIX: API key required, no fallback
-    "model_timeouts": {
-        "summary": 60.0,  # FIX: Increased timeouts
-        "ocr": 120.0,
-        "asr": 180.0,
-    }
-}
-CFG["temp_dir"].mkdir(exist_ok=True)
-CFG["kb_dir"].mkdir(exist_ok=True)
-
-# Configure structured JSON logging
-log = setup_json_logging(
-    service_name="main-backend",
-    log_level=os.getenv("LOG_LEVEL", "INFO"),
-    log_file="logs/main_backend.log",
-    environment=os.getenv("ENVIRONMENT", "production"),
-    enable_console=True
-)
-
-# Log python-magic availability warning if needed
-if not MAGIC_AVAILABLE:
-    log.warning("python-magic not available, using basic MIME validation")
-
-log.info("Main backend service starting", extra={
-    "config": {
-        "max_concurrent_requests": CFG["concurrency"]["max_concurrent_requests"],
-        "mysql_host": CFG["mysql"]["host"],
-        "mysql_port": CFG["mysql"]["port"],
-        "session_timeout": CFG["session_timeout"]
-    }
-})
-
-# ------------------------------------------------------------- ENUMS & UTILS
-# ValidationStep is now imported from input_validation module
-
-# Global Bedrock services (initialized during startup if ENABLE_BEDROCK=true)
-_fir_generation_service: Optional['FIRGenerationService'] = None
-
-def get_fir_generation_service() -> Optional['FIRGenerationService']:
-    """Get the global FIR generation service instance."""
-    return _fir_generation_service
-
-class SessionStatus(str, Enum):
-    PROCESSING = "processing"
-    AWAITING_VALIDATION = "awaiting_validation"
-    COMPLETED = "completed"
-    EXPIRED = "expired"
-    ERROR = "error"
-
-# DateTime JSON encoder
-class DateTimeEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, datetime):
-            return o.isoformat()
-        return super().default(o)
-
-def sanitize(text: str) -> str:
-    """Legacy sanitization function - use input_validation.sanitize_text instead"""
-    return sanitize_text(text, allow_html=False)
-
-# FIX: File validation with proper MIME checking
-def validate_uploaded_file(file_path: Path, content_type: str) -> bool:
-    """Validate file extension and MIME type"""
-    # Check extension
-    ext = file_path.suffix.lower()
-    if ext not in CFG["allowed_extensions"]:
-        raise HTTPException(status_code=415, detail=f"Invalid file extension: {ext}")
-    
-    # MIME validation
-    if MAGIC_AVAILABLE:
-        try:
-            detected_mime = magic.Magic(mime=True).from_file(str(file_path))
-            # Check against allowed types
-            if content_type.startswith("image/") and detected_mime not in CFG["allowed_image"]:
-                raise HTTPException(status_code=415, detail=f"Invalid image MIME type: {detected_mime}")
-            elif content_type.startswith("audio/") and detected_mime not in CFG["allowed_audio"]:
-                raise HTTPException(status_code=415, detail=f"Invalid audio MIME type: {detected_mime}")
-        except HTTPException:
-            raise
-        except Exception as e:
-            log.warning(f"MIME detection failed: {e}")
-    else:
-        # Basic fallback validation
-        if content_type not in (CFG["allowed_image"] | CFG["allowed_audio"]):
-            raise HTTPException(status_code=415, detail=f"Unsupported content type: {content_type}")
-    
-    return True
-
-def get_fir_data(session_state: dict, fir_number: str) -> dict:
-    """
-    Construct FIR data from session state.
-    
-    SECURITY FIX (BUG-0007): Do NOT use hardcoded fallback values for legal documents.
-    All required fields must be explicitly provided or validation should fail.
-    Missing required fields will be set to None and must be validated before FIR finalization.
-    """
-    from datetime import datetime
-
-    now = datetime.now()
-    present_date = now.strftime("%d %B %Y")
-    present_time = now.strftime("%H:%M:%S")
-
-    # SECURITY FIX: Validate required fields are present
-    required_fields = [
-        'complainant_name', 'father_name', 'complainant_address', 
-        'complainant_contact', 'occurrence_place', 'incident_description'
-    ]
-    
-    missing_fields = [field for field in required_fields if not session_state.get(field)]
-    
-    if missing_fields:
-        log.warning(
-            f"FIR generation attempted with missing required fields: {missing_fields}",
-            extra={
-                "fir_number": fir_number,
-                "missing_fields": missing_fields,
-                "session_id": session_state.get('session_id', 'unknown')
-            }
-        )
-        # Log security event for audit trail
-        log_security_event(
-            event_type="fir_missing_required_fields",
-            fir_number=fir_number,
-            missing_fields=missing_fields,
-            severity="high"
-        )
-
-    # Construct FIR data dict - NO HARDCODED FALLBACKS for legal fields
-    fir_data = {
-        'fir_number': fir_number,
-        
-        # Police station details - use session or None (must be configured)
-        'police_station': session_state.get('police_station'),  # REQUIRED
-        'district': session_state.get('district'),  # REQUIRED
-        'state': session_state.get('state'),  # REQUIRED
-        'year': present_date.split()[-1],
-        'date': present_date,
-
-        # Legal provisions
-        'Acts': session_state.get('Acts', []),
-        'Sections': session_state.get('Sections', []),
-
-        # Occurrence details
-        'Occurrence of Offence': session_state.get('occurrence_of_offence', ''),
-        'Date from': session_state.get('date_from', present_date),
-        'Date to': session_state.get('date_to', present_date),
-        'Time from': session_state.get('time_from', ''),
-        'Time to': session_state.get('time_to', ''),
-        'Information recieved': f"{present_date} at {present_time}",
-
-        # Place of occurrence - REQUIRED
-        'Place of Occurrence': session_state.get('occurrence_place'),  # REQUIRED
-        'Address of Occurrence': session_state.get('occurrence_address', session_state.get('occurrence_place')),
-
-        # Complainant details - REQUIRED
-        'complainant_name': session_state.get('complainant_name'),  # REQUIRED
-        'dateofbirth': session_state.get('date_of_birth', ''),
-        'Nationality': session_state.get('nationality', 'Indian'),  # Default to Indian for Indian legal system
-        'father_name/husband_name': session_state.get('father_name'),  # REQUIRED
-        'complainant_address': session_state.get('complainant_address'),  # REQUIRED
-        'complainant_contact': session_state.get('complainant_contact'),  # REQUIRED
-        'passport_number': session_state.get('passport_number', ''),
-        'occupation': session_state.get('occupation', ''),
-
-        # Suspect details
-        'Suspect_details': session_state.get('suspect_details', 'Unknown'),
-
-        # Reporting details
-        'reasons_for_delayed_reporting': session_state.get('delay_reason', 'No delay reported'),
-
-        # Incident details - REQUIRED
-        'incident_description': session_state.get('incident_description'),  # REQUIRED
-        'summary': session_state.get('summary', ''),
-        'action_taken': session_state.get('action_taken', 'Preliminary investigation initiated'),
-
-        # Investigation officer details - use session or None
-        'io_name': session_state.get('io_name'),  # REQUIRED
-        'io_rank': session_state.get('io_rank', 'Inspector'),
-        'witnesses': session_state.get('witnesses', ''),
-        'date_of_despatch': present_date,
-
-        'investigation_status': session_state.get('investigation_status', 'Under investigation'),
-    }
-    
-    # SECURITY FIX: Add validation metadata
-    fir_data['_validation_status'] = 'incomplete' if missing_fields else 'complete'
-    fir_data['_missing_fields'] = missing_fields
-    fir_data['_generated_at'] = now.isoformat()
-
-    return fir_data
-
-
-
-fir_template = """
-FIRST INFORMATION REPORT
-
-------------------------------------------------------------------------------------------------------
-
-FIR No.: {fir_number}                 Year: {year}
-Police Station: {police_station}
-District: {district}
-State: {state}
-
-Date of Report: {date}
-Information Received: {Information recieved}
-
-1. COMPLAINANT DETAILS:
-   - Full Name: {complainant_name}
-   - Date of Birth: {dateofbirth}
-   - Nationality: {Nationality}
-   - Father's/Husband's Name: {father_name/husband_name}
-   - Complete Address: {complainant_address}
-   - Contact Number: {complainant_contact}
-   - Passport Number: {passport_number}
-   - Occupation: {occupation}
-
-2. INCIDENT DETAILS:
-   - Date from: {Date from}
-   - Date to: {Date to}
-   - Time from: {Time from}
-   - Time to: {Time to}
-   - Place of Occurrence: {Place of Occurrence}
-   - Address of Occurrence: {Address of Occurrence}
-   - Detailed Description:
-     {incident_description}
-   - Reason for Delayed Reporting:
-     {reasons_for_delayed_reporting}
-   - Summary:
-     {summary}
-
-3. LEGAL PROVISIONS:
-   - Applicable Acts: {Acts}
-   - Applicable Sections: {Sections}
-
-4. SUSPECT DETAILS:
-   - {Suspect_details}
-
-5. INVESTIGATION DETAILS:
-   - Investigating Officer: {io_name} ({io_rank})
-   - Witnesses: {witnesses}
-   - Action Taken: {action_taken}
-   - Investigation Status: {investigation_status}
-   - Date of Despatch: {date_of_despatch}
-
-------------------------------------------------------------------------------------------------------
-
-(Signature of Investigating Officer)
-
-(Signature of Complainant)
-
-{io_name}
-{io_rank}
-{police_station}
-Date: {date}
-"""
-
-
-# ------------------------------------------------------------- PERSISTENT SESSION MANAGER
-class PersistentSessionManager:
-    """FIX: Session persistence using SQLite with thread-safe operations"""
-    def __init__(self, db_path: str):
-        self.db_path = db_path
-        self._lock = threading.Lock()  # CRITICAL FIX: Thread-safe operations
-        self._init_db()
-        self._cleanup_interval = 300  # 5 minutes
-        self._last_cleanup = datetime.now()
-        self._session_cache = {}  # PERFORMANCE: In-memory cache for session data
-        self._cache_ttl = 60  # Cache TTL in seconds
-    
-    def _init_db(self):
-        with sqlite3.connect(self.db_path) as conn:
-            # ZERO DATA LOSS: Enable WAL mode for better crash recovery and concurrency
-            conn.execute("PRAGMA journal_mode=WAL")
-            # ZERO DATA LOSS: Ensure data is synced to disk on commit
-            conn.execute("PRAGMA synchronous=FULL")
-            
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS sessions (
-                    session_id TEXT PRIMARY KEY,
-                    state TEXT,
-                    status TEXT,
-                    created_at TEXT,
-                    last_activity TEXT,
-                    validation_history TEXT
-                )
-            """)
-            log.info("Session database initialized with WAL mode and FULL synchronous")
-    
-    def create_session(self, session_id: str, initial_state: Dict) -> None:
-        now = datetime.now().isoformat()
-        with self._lock:  # CRITICAL FIX: Thread-safe session creation
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute(
-                    "INSERT OR REPLACE INTO sessions VALUES (?, ?, ?, ?, ?, ?)",
-                    (session_id, json.dumps(initial_state, cls=DateTimeEncoder), 
-                     SessionStatus.PROCESSING, now, now, "[]")
-                )
-        self._cleanup_old_sessions()
-    
-    def get_session(self, session_id: str) -> Optional[Dict]:
-        import time
-        
-        # PERFORMANCE: Check cache first (thread-safe)
-        with self._lock:
-            if session_id in self._session_cache:
-                cached_time, cached_session = self._session_cache[session_id]
-                if time.time() - cached_time < self._cache_ttl:
-                    return cached_session
-        
-        self._cleanup_old_sessions()
-        with self._lock:  # CRITICAL FIX: Thread-safe session retrieval
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.execute(
-                    "SELECT * FROM sessions WHERE session_id = ?", (session_id,)
-                )
-                row = cursor.fetchone()
-                if not row:
-                    # Remove from cache if exists
-                    self._session_cache.pop(session_id, None)
-                    return None
-                
-                # Update last activity
-                now = datetime.now().isoformat()
-                conn.execute(
-                    "UPDATE sessions SET last_activity = ? WHERE session_id = ?",
-                    (now, session_id)
-                )
-                
-                session_data = {
-                    "session_id": row[0],
-                    "state": json.loads(row[1]),
-                    "status": row[2],
-                    "created_at": datetime.fromisoformat(row[3]),
-                    "last_activity": datetime.fromisoformat(row[4]),
-                    "validation_history": json.loads(row[5])
-                }
-                
-                # PERFORMANCE: Cache the result
-                self._session_cache[session_id] = (time.time(), session_data)
-                
-                return session_data
-    
-    def update_session(self, session_id: str, updates: Dict) -> bool:
-        session = self.get_session(session_id)
-        if not session:
-            return False
-        
-        session["state"].update(updates)
-        now = datetime.now().isoformat()
-        
-        with self._lock:  # CRITICAL FIX: Thread-safe session update
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute(
-                    "UPDATE sessions SET state = ?, last_activity = ? WHERE session_id = ?",
-                    (json.dumps(session["state"], cls=DateTimeEncoder), now, session_id)
-                )
-            
-            # PERFORMANCE: Invalidate cache
-            self._session_cache.pop(session_id, None)
-        
-        return True
-    
-    def set_session_status(self, session_id: str, status: SessionStatus) -> bool:
-        with self._lock:  # CRITICAL FIX: Thread-safe status update
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.execute(
-                    "UPDATE sessions SET status = ?, last_activity = ? WHERE session_id = ?",
-                    (status, datetime.now().isoformat(), session_id)
-                )
-                success = cursor.rowcount > 0
-            
-            # PERFORMANCE: Invalidate cache
-            if success:
-                self._session_cache.pop(session_id, None)
-        
-        return success
-    
-    def add_validation_step(self, session_id: str, step: ValidationStep, content: Dict) -> bool:
-        session = self.get_session(session_id)
-        if not session:
-            return False
-        
-        history = session["validation_history"]
-        history.append({
-            "step": step,
-            "content": content,
-            "timestamp": datetime.now().isoformat()
-        })
-        
-        with self._lock:  # CRITICAL FIX: Thread-safe validation step addition
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute(
-                    "UPDATE sessions SET validation_history = ? WHERE session_id = ?",
-                    (json.dumps(history, cls=DateTimeEncoder), session_id)
-                )
-            
-            # PERFORMANCE: Invalidate cache
-            self._session_cache.pop(session_id, None)
-        
-        return True
-    
-    def _cleanup_old_sessions(self):
-        now = datetime.now()
-        if (now - self._last_cleanup).seconds < self._cleanup_interval:
-            return
-        
-        cutoff = (now - timedelta(seconds=CFG["session_timeout"])).isoformat()
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute(
-                "UPDATE sessions SET status = ? WHERE last_activity < ? AND status != ?",
-                (SessionStatus.EXPIRED, cutoff, SessionStatus.EXPIRED)
-            )
-            if cursor.rowcount > 0:
-                log.info(f"Expired {cursor.rowcount} old sessions")
-        
-        self._last_cleanup = now
-    
-    def flush_all(self):
-        """
-        ZERO DATA LOSS: Flush all session data to disk
-        Called during graceful shutdown to prevent data loss
-        """
-        try:
-            # Clear cache to ensure all data is written
-            self._session_cache.clear()
-            
-            # Force SQLite to write all pending changes to disk
-            with sqlite3.connect(self.db_path) as conn:
-                # WAL checkpoint to flush write-ahead log
-                conn.execute("PRAGMA wal_checkpoint(FULL)")
-                # Sync to ensure data is on disk
-                conn.commit()
-            log.info("Session database flushed to disk")
-        except Exception as e:
-            log.error(f"Failed to flush session database: {e}")
-            raise
-
-session_manager = PersistentSessionManager(CFG["session_db_path"])
-
-# ------------------------------------------------------------- TEMP FILE MANAGER
-class TempFileManager:
-    def __init__(self):
-        self.temp_paths: List[Path] = []
-    
-    async def __aenter__(self):
-        return self
-    
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        for path in self.temp_paths:
-            try:
-                if path.exists():
-                    path.unlink()
-                    log.debug(f"Cleaned up temp file: {path}")
-            except Exception as e:
-                log.warning(f"Failed to cleanup {path}: {e}")
-    
-    async def save_audio(self, audio: UploadFile) -> str:
-        if audio.content_type not in CFG["allowed_audio"]:
-            raise HTTPException(status_code=415, detail="Unsupported audio format")
-        
-        # FIX: Use pathlib for secure filename handling
-        safe_filename = f"{uuid.uuid4().hex}{Path(audio.filename).suffix.lower()}"
-        path = CFG["temp_dir"] / safe_filename
-        content = await audio.read()
-        
-        if len(content) > CFG["max_file_size"]:
-            raise HTTPException(status_code=413, detail="Audio file too large")
-        
-        path.write_bytes(content)
-        validate_uploaded_file(path, audio.content_type)
-        self.temp_paths.append(path)
-        return str(path)
-    
-    async def save_image(self, image: UploadFile) -> str:
-        if image.content_type not in CFG["allowed_image"]:
-            raise HTTPException(status_code=415, detail="Unsupported image format")
-        
-        # FIX: Use pathlib for secure filename handling
-        safe_filename = f"{uuid.uuid4().hex}{Path(image.filename).suffix.lower()}"
-        path = CFG["temp_dir"] / safe_filename
-        content = await image.read()
-        
-        if len(content) > CFG["max_file_size"]:
-            raise HTTPException(status_code=413, detail="Image file too large")
-        
-        path.write_bytes(content)
-        validate_uploaded_file(path, image.content_type)
-        self.temp_paths.append(path)
-        return str(path)
-    
-
-#==============MODEL POOL=================================
-class ModelPool:
-    _instance: Optional["ModelPool"] = None
-    _lock = asyncio.Lock()
-    _health_check_cache = {}  # Cache health check results
-    _health_check_ttl = 30  # Cache TTL in seconds
-    _http_client: Optional[httpx.AsyncClient] = None  # CONCURRENCY: Shared HTTP client with connection pooling
-    _model_semaphore: Optional[asyncio.Semaphore] = None  # CONCURRENCY: Limit concurrent model calls
-    _max_cache_size = 100  # HIGH PRIORITY FIX: Bounded cache to prevent memory leaks
-    
-    def __init__(self, model_server_url: str = "http://localhost:8001", asr_ocr_server_url: str = "http://localhost:8002"):
-        self.MODEL_SERVER_URL = model_server_url
-        self.ASR_OCR_SERVER_URL = asr_ocr_server_url
-        
-        # CONCURRENCY: Initialize shared HTTP client with connection pooling
-        limits = httpx.Limits(
-            max_connections=CFG["concurrency"]["http_pool_connections"],
-            max_keepalive_connections=CFG["concurrency"]["http_pool_maxsize"]
-        )
-        self._http_client = httpx.AsyncClient(
-            timeout=45.0,
-            limits=limits,
-            http2=True  # Enable HTTP/2 for better multiplexing
-        )
-        
-        # CONCURRENCY: Semaphore to limit concurrent model inference calls
-        self._model_semaphore = asyncio.Semaphore(CFG["concurrency"]["max_concurrent_model_calls"])
-        
-        # RELIABILITY: Circuit breakers for external services
-        self.model_server_circuit = CircuitBreaker(
-            failure_threshold=5,
-            recovery_timeout=60.0,
-            expected_exception=Exception,
-            name="model_server"
-        )
-        self.asr_ocr_circuit = CircuitBreaker(
-            failure_threshold=5,
-            recovery_timeout=60.0,
-            expected_exception=Exception,
-            name="asr_ocr_server"
-        )
-        
-        # RELIABILITY: Retry policies
-        self.inference_retry = RetryPolicy(
-            max_retries=2,
-            initial_delay=1.0,
-            max_delay=10.0,
-            name="inference"
-        )
-        self.asr_ocr_retry = RetryPolicy(
-            max_retries=2,
-            initial_delay=2.0,
-            max_delay=15.0,
-            name="asr_ocr"
-        )
-        
-        log.info("ModelPool initialized for external model server communication")
-        log.info(f"HTTP connection pool: {CFG['concurrency']['http_pool_connections']} connections")
-        log.info(f"Max concurrent model calls: {CFG['concurrency']['max_concurrent_model_calls']}")
-        log.info("Circuit breakers and retry policies enabled for reliability")
-
-    @classmethod
-    async def get(cls, model_server_url: str = "http://localhost:8001", asr_ocr_server_url: str = "http://localhost:8002") -> "ModelPool":
-        async with cls._lock:
-            if cls._instance is None:
-                cls._instance = ModelPool(model_server_url, asr_ocr_server_url)  
-            return cls._instance
-
-    async def _check_server_health(self, server_url: str, server_name: str) -> tuple[bool, str]:
-        """Check if a server is healthy and models are loaded"""
-        import time
-        
-        # Check cache first
-        cache_key = f"{server_name}_{server_url}"
-        if cache_key in self._health_check_cache:
-            cached_time, cached_result = self._health_check_cache[cache_key]
-            if time.time() - cached_time < self._health_check_ttl:
-                return cached_result
-        
-        try:
-            # CONCURRENCY: Use shared HTTP client for health checks
-            resp = await self._http_client.get(f"{server_url}/health", timeout=5.0)
-            resp.raise_for_status()
-            health_data = resp.json()
-            
-            status = health_data.get("status", "unknown")
-            message = health_data.get("message", "No message")
-            
-            is_healthy = status in ["healthy", "degraded"]
-            result = (is_healthy, message)
-            
-            # Cache result with bounded cache
-            self._health_check_cache[cache_key] = (time.time(), result)
-            
-            # HIGH PRIORITY FIX: Cleanup old cache entries if cache is too large
-            if len(self._health_check_cache) > self._max_cache_size:
-                # Remove oldest entries
-                sorted_cache = sorted(self._health_check_cache.items(), key=lambda x: x[1][0])
-                for old_key, _ in sorted_cache[:len(self._health_check_cache) - self._max_cache_size]:
-                    del self._health_check_cache[old_key]
-            
-            return result
-            
-        except Exception as e:
-            error_msg = f"{server_name} health check failed: {str(e)}"
-            log.error(error_msg)
-            result = (False, error_msg)
-            
-            # Cache failure for shorter time
-            self._health_check_cache[cache_key] = (time.time() - self._health_check_ttl + 5, result)
-            
-            return result
-
-    async def _inference(self, model_name: str, prompt: str, max_tokens: int = 120, temperature: float = 0.1, stop: list = None) -> str:
-        # Check model server health first (with caching)
-        is_healthy, health_msg = await self._check_server_health(self.MODEL_SERVER_URL, "Model Server")
-        if not is_healthy:
-            raise RuntimeError(f"Model server is not healthy: {health_msg}")
-        
-        # RELIABILITY: Wrap inference with circuit breaker and retry policy
-        async def _do_inference():
-            # CONCURRENCY: Use semaphore to limit concurrent model calls
-            async with self._model_semaphore:
-                # X-RAY: Trace model inference
-                async with AsyncXRaySubsegment(f"model_inference_{model_name}") as subsegment:
-                    subsegment.put_annotation("model_name", model_name)
-                    subsegment.put_annotation("max_tokens", max_tokens)
-                    subsegment.put_metadata("prompt_length", len(prompt))
-                    
-                    # MONITORING: Track model server request latency
-                    import time
-                    start_time = time.time()
-                    success = False
-                    
-                    payload = {
-                        "model_name": model_name,
-                        "prompt": prompt,
-                        "max_tokens": max_tokens,
-                        "temperature": temperature
-                    }
-                    if stop:
-                        payload["stop"] = stop
-
-                    try:
-                        # CONCURRENCY: Use shared HTTP client with connection pooling
-                        resp = await self._http_client.post(f"{self.MODEL_SERVER_URL}/inference", json=payload)
-                        resp.raise_for_status()
-                        result = resp.json()
-                        
-                        success = True
-                        subsegment.put_annotation("success", True)
-                        subsegment.put_metadata("response_length", len(result["result"]))
-                        
-                        return result["result"]
-                    except httpx.RequestError as e:
-                        subsegment.put_annotation("error", True)
-                        subsegment.put_metadata("error_type", "request_error")
-                        log.error(f"Model server request failed: {e}")
-                        raise RuntimeError(f"Model server unavailable: {e}")
-                    except httpx.HTTPStatusError as e:
-                        subsegment.put_annotation("error", True)
-                        subsegment.put_metadata("error_type", "http_error")
-                        subsegment.put_metadata("status_code", e.response.status_code)
-                        log.error(f"Model server returned error: {e.response.status_code}")
-                        error_detail = e.response.text
-                        raise RuntimeError(f"Model inference failed: {error_detail}")
-                    finally:
-                        # MONITORING: Record model server latency and availability
-                        duration = time.time() - start_time
-                        MetricsCollector.record_model_server_latency("gguf_model_server", duration, success)
-        
-        # Apply circuit breaker and retry policy with auto-recovery
-        try:
-            return await self.model_server_circuit.call(
-                self.inference_retry.execute,
-                _do_inference
-            )
-        except Exception as e:
-            # Trigger auto-recovery if circuit breaker opens
-            if self.model_server_circuit.state == "open":
-                log.warning("Model server circuit breaker opened, triggering auto-recovery")
-                asyncio.create_task(auto_recovery.trigger_recovery("model_server", e))
-            raise
-
-    async def two_line_summary(self, text: str) -> str:
-        prompt = f"<|user|>\nSummarise the following complaint in exactly two sentences:\n{text}\n<|assistant|>"
-        # PERFORMANCE: Reduced max_tokens for faster generation
-        return await self._inference("summariser", prompt, max_tokens=100, temperature=0.1)
-
-    async def check_violation(self, summary: str, ref: str) -> bool:
-        prompt = f"<|user|>\nComplaint summary:\n{summary}\n\nReference BNS clause:\n{ref}\n\nDoes the summary indicate a violation? Answer only YES or NO.\n<|assistant|>"
-        # PERFORMANCE: Minimal tokens for yes/no answer
-        response = await self._inference("bns_check", prompt, max_tokens=3, temperature=0.0, stop=["\n"])
-        return response.strip().upper().startswith("YES")
-
-    async def fir_narrative(self, complaint: str) -> str:
-        prompt = f"<|user|>\nCreate a concise FIR narrative (max 3 sentences) from:\n{complaint}\n<|assistant|>"
-        # PERFORMANCE: Reduced max_tokens for faster generation
-        return await self._inference("fir_summariser", prompt, max_tokens=150, temperature=0.2)
-    
-    async def whisper_transcribe(self, audio_path: str) -> str:
-        """ASR transcription via external ASR/OCR server with reliability"""
-        # Check ASR/OCR server health first
-        is_healthy, health_msg = await self._check_server_health(self.ASR_OCR_SERVER_URL, "ASR/OCR Server")
-        if not is_healthy:
-            raise RuntimeError(f"ASR/OCR server is not healthy: {health_msg}")
-        
-        # RELIABILITY: Wrap ASR with circuit breaker and retry policy
-        async def _do_asr():
-            # CONCURRENCY: Use semaphore to limit concurrent ASR calls
-            async with self._model_semaphore:
-                # MONITORING: Track ASR/OCR server request latency
-                import time
-                start_time = time.time()
-                success = False
-                
-                try:
-                    with open(audio_path, 'rb') as audio_file:
-                        files = {"audio": audio_file}
-                        # CONCURRENCY: Use shared HTTP client
-                        resp = await self._http_client.post(f"{self.ASR_OCR_SERVER_URL}/asr", files=files, timeout=180.0)
-                        resp.raise_for_status()
-                        result = resp.json()
-                        
-                        if not result.get("success", False):
-                            error_detail = result.get('error', 'Unknown error')
-                            raise RuntimeError(f"ASR failed: {error_detail}")
-                        
-                        transcript = result.get("transcript", "")
-                        if not transcript:
-                            raise RuntimeError("ASR returned empty transcript")
-                        
-                        success = True
-                        return transcript
-                        
-                except httpx.RequestError as e:
-                    log.error(f"ASR server request failed: {e}")
-                    raise RuntimeError(f"ASR server unavailable: {e}")
-                except httpx.HTTPStatusError as e:
-                    log.error(f"ASR server returned error: {e.response.status_code}")
-                    raise RuntimeError(f"ASR processing failed: {e.response.text}")
-                finally:
-                    # MONITORING: Record ASR/OCR server latency and availability
-                    duration = time.time() - start_time
-                    MetricsCollector.record_model_server_latency("asr_ocr_server", duration, success)
-        
-        # Apply circuit breaker and retry policy with auto-recovery
-        try:
-            return await self.asr_ocr_circuit.call(
-                self.asr_ocr_retry.execute,
-                _do_asr
-            )
-        except Exception as e:
-            # Trigger auto-recovery if circuit breaker opens
-            if self.asr_ocr_circuit.state == "open":
-                log.warning("ASR/OCR server circuit breaker opened, triggering auto-recovery")
-                asyncio.create_task(auto_recovery.trigger_recovery("asr_ocr_server", e))
-            raise
-    
-    async def dots_ocr_sync(self, image_path: str) -> str:
-        """OCR processing via external ASR/OCR server with reliability"""
-        # Check ASR/OCR server health first
-        is_healthy, health_msg = await self._check_server_health(self.ASR_OCR_SERVER_URL, "ASR/OCR Server")
-        if not is_healthy:
-            raise RuntimeError(f"ASR/OCR server is not healthy: {health_msg}")
-        
-        # RELIABILITY: Wrap OCR with circuit breaker and retry policy
-        async def _do_ocr():
-            # CONCURRENCY: Use semaphore to limit concurrent OCR calls
-            async with self._model_semaphore:
-                # MONITORING: Track ASR/OCR server request latency
-                import time
-                start_time = time.time()
-                success = False
-                
-                try:
-                    with open(image_path, 'rb') as image_file:
-                        files = {"image": image_file}
-                        # CONCURRENCY: Use shared HTTP client
-                        resp = await self._http_client.post(f"{self.ASR_OCR_SERVER_URL}/ocr", files=files, timeout=120.0)
-                        resp.raise_for_status()
-                        result = resp.json()
-                        
-                        if not result.get("success", False):
-                            error_detail = result.get('error', 'Unknown error')
-                            raise RuntimeError(f"OCR failed: {error_detail}")
-                        
-                        extracted_text = result.get("extracted_text", "")
-                        if not extracted_text:
-                            raise RuntimeError("OCR returned empty text")
-                        
-                        success = True
-                        return extracted_text
-                        
-                except httpx.RequestError as e:
-                    log.error(f"OCR server request failed: {e}")
-                    raise RuntimeError(f"OCR server unavailable: {e}")
-                except httpx.HTTPStatusError as e:
-                    log.error(f"OCR server returned error: {e.response.status_code}")
-                    raise RuntimeError(f"OCR processing failed: {e.response.text}")
-                finally:
-                    # MONITORING: Record ASR/OCR server latency and availability
-                    duration = time.time() - start_time
-                    MetricsCollector.record_model_server_latency("asr_ocr_server", duration, success)
-        
-        # Apply circuit breaker and retry policy with auto-recovery
-        try:
-            return await self.asr_ocr_circuit.call(
-                self.asr_ocr_retry.execute,
-                _do_ocr
-            )
-        except Exception as e:
-            # Trigger auto-recovery if circuit breaker opens
-            if self.asr_ocr_circuit.state == "open":
-                log.warning("ASR/OCR server circuit breaker opened, triggering auto-recovery")
-                asyncio.create_task(auto_recovery.trigger_recovery("asr_ocr_server", e))
-            raise
-
-# ------------------------------------------------------------- KB 
-class KB:
-    def __init__(self):
-        try:
-            self.client = chromadb.PersistentClient(path=CFG["chroma"]["persist_dir"])
-            self.cols = {}
-            self._query_cache = {}  # PERFORMANCE: Cache for KB queries
-            self._cache_ttl = 300  # 5 minutes cache TTL
-            self._load_jsonl_dbs()
-            log.info("Knowledge base initialized successfully")
-        except Exception as e:
-            log.error(f"KB initialization failed: {e}")
-            raise
-
-    def _load_jsonl_dbs(self):
-        for file in CFG["kb_dir"].glob("*.jsonl"):
-            try:
-                name = file.stem
-                col = self.client.get_or_create_collection(name)
-                if col.count() == 0:
-                    docs, metas, ids = [], [], []
-                    with open(file, encoding="utf-8") as f:
-                        for idx, line in enumerate(f):
-                            row = json.loads(line)
-                            docs.append(row["text"])
-                            metas.append({"section": row["section"], "title": row.get("title", "")})
-                            ids.append(f"{name}_{idx}")
-                    if docs:
-                        col.add(documents=docs, metadatas=metas, ids=ids)
-                        log.info(f"Loaded {len(docs)} documents into {name}")
-                self.cols[name] = col
-            except Exception as e:
-                log.error(f"Failed to load {file}: {e}")
-
-    def retrieve(self, query: str, n_results: int = 15) -> List[Dict[str, Any]]:
-        """PERFORMANCE: Retrieve with caching and reduced result count"""
-        import time
-        import hashlib
-        
-        # Create cache key from query
-        cache_key = hashlib.md5(query.encode()).hexdigest()
-        
-        # Check cache
-        if cache_key in self._query_cache:
-            cached_time, cached_results = self._query_cache[cache_key]
-            if time.time() - cached_time < self._cache_ttl:
-                log.debug(f"KB cache hit for query")
-                return cached_results
-        
-        hits = []
-        for db_name, col in self.cols.items():
-            try:
-                # PERFORMANCE: Reduced from 20 to configurable n_results
-                res = col.query(query_texts=[query], n_results=n_results)
-                for doc, meta in zip(res["documents"][0], res["metadatas"][0]):
-                    hits.append({"db": db_name, "section": meta["section"], "text": doc})
-            except Exception as e:
-                log.warning(f"Query failed for {db_name}: {e}")
-        
-        # Cache results
-        self._query_cache[cache_key] = (time.time(), hits)
-        
-        # Cleanup old cache entries (keep cache size manageable)
-        if len(self._query_cache) > 100:
-            current_time = time.time()
-            self._query_cache = {
-                k: v for k, v in self._query_cache.items()
-                if current_time - v[0] < self._cache_ttl
-            }
-        
-        return hits
-
-KB = KB()
-
-# ------------------------------------------------------------- ENHANCED RAG WITH VALIDATION
-async def generate_summary_with_validation(session_id: str, transcript: str, user_input: Optional[str] = None) -> str:
-    """
-    Generate summary with validation.
-    Routes to either GGUF or Bedrock implementation based on ENABLE_BEDROCK flag.
-    """
-    settings = get_settings()
-    
-    text_to_process = transcript
-    if user_input:
-        text_to_process = f"{transcript}\n\nAdditional user input: {user_input}"
-    
-    if settings.enable_bedrock:
-        # Use Bedrock implementation
-        log.info(f"Session {session_id}: Generating summary using Bedrock")
-        fir_service = get_fir_generation_service()
-        
-        if not fir_service:
-            raise RuntimeError("Bedrock services not initialized")
-        
-        # Use Bedrock to generate formal narrative (similar to summary)
-        result = await fir_service.bedrock_client.generate_formal_narrative(text_to_process)
-        summary = result.narrative
-    else:
-        # Use GGUF implementation
-        log.info(f"Session {session_id}: Generating summary using GGUF")
-        pool = await ModelPool.get()
-        summary = await asyncio.wait_for(
-            pool.two_line_summary(text_to_process),
-            timeout=CFG["model_timeouts"]["summary"]
-        )
-
-    session_manager.add_validation_step(session_id, ValidationStep.SUMMARY_REVIEW, {
-        "summary": summary,
-        "original_transcript": transcript,
-        "user_input": user_input
-    })
-    
-    return summary
-
-async def find_violations_with_validation(session_id: str, summary: str, user_input: Optional[str] = None) -> List[Dict[str, Any]]:
-    """
-    Find legal violations with validation.
-    Routes to either GGUF or Bedrock implementation based on ENABLE_BEDROCK flag.
-    """
-    settings = get_settings()
-    
-    search_text = summary
-    if user_input:
-        search_text = f"{summary}\n\nAdditional context: {user_input}"
-    
-    if settings.enable_bedrock:
-        # Use Bedrock implementation with vector search
-        log.info(f"Session {session_id}: Finding violations using Bedrock")
-        fir_service = get_fir_generation_service()
-        
-        if not fir_service:
-            raise RuntimeError("Bedrock services not initialized")
-        
-        # Generate embedding for search
-        query_embedding = await fir_service.titan_client.generate_embedding(search_text)
-        
-        # Search vector database
-        search_results = await fir_service.vector_db.similarity_search(
-            query_vector=query_embedding,
-            top_k=5
-        )
-        
-        # Convert to violations format
-        violations = []
-        for result in search_results:
-            violations.append({
-                "section": result.metadata.get("ipc_section", "Unknown"),
-                "text": result.metadata.get("description", ""),
-                "penalty": result.metadata.get("penalty", ""),
-                "similarity": result.score
-            })
-    else:
-        # Use GGUF implementation
-        log.info(f"Session {session_id}: Finding violations using GGUF")
-        pool = await ModelPool.get()
-        
-        hits = await asyncio.wait_for(
-            asyncio.to_thread(KB.retrieve, search_text),
-            timeout=15.0
-        )
-
-        # PERFORMANCE: Parallel violation checking with batching
-        violations = []
-        seen = set()
-        
-        # Limit hits to top 10 most relevant to reduce processing time
-        top_hits = hits[:10]
-        
-        # Create tasks for parallel violation checking
-        async def check_single_violation(h: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-            try:
-                if await asyncio.wait_for(
-                    pool.check_violation(search_text, h["text"]),
-                    timeout=8.0
-                ):
-                    return h
-            except asyncio.TimeoutError:
-                log.warning(f"Violation check timeout for section {h.get('section', 'unknown')}")
-            except Exception as e:
-                log.warning(f"Violation check error: {e}")
-            return None
-        
-        # Run checks in parallel with concurrency limit
-        tasks = [check_single_violation(h) for h in top_hits]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # Collect valid violations
-        for result in results:
-            if result and not isinstance(result, Exception):
-                key = (result["section"], result["text"])
-                if key not in seen:
-                    seen.add(key)
-                    violations.append(result)
-
-    session_manager.add_validation_step(session_id, ValidationStep.VIOLATIONS_REVIEW, {
-        "violations": violations,
-        "search_text": search_text,
-        "user_input": user_input
-    })
-    
-    return violations
-
-async def generate_fir_narrative_with_validation(session_id: str, transcript: str, user_input: Optional[str] = None) -> str:
-    """
-    Generate FIR narrative with validation.
-    Routes to either GGUF or Bedrock implementation based on ENABLE_BEDROCK flag.
-    """
-    settings = get_settings()
-    
-    text_to_process = transcript
-    if user_input:
-        text_to_process = f"{transcript}\n\nAdditional details: {user_input}"
-    
-    if settings.enable_bedrock:
-        # Use Bedrock implementation
-        log.info(f"Session {session_id}: Generating FIR narrative using Bedrock")
-        fir_service = get_fir_generation_service()
-        
-        if not fir_service:
-            raise RuntimeError("Bedrock services not initialized")
-        
-        # Use Bedrock to generate formal narrative
-        result = await fir_service.bedrock_client.generate_formal_narrative(text_to_process)
-        narrative = result.narrative
-    else:
-        # Use GGUF implementation
-        log.info(f"Session {session_id}: Generating FIR narrative using GGUF")
-        pool = await ModelPool.get()
-        narrative = await asyncio.wait_for(
-            pool.fir_narrative(text_to_process),
-            timeout=CFG["model_timeouts"]["summary"]
-        )
-
-    
-    session_manager.add_validation_step(session_id, ValidationStep.FIR_NARRATIVE_REVIEW, {
-        "narrative": narrative,
-        "original_transcript": transcript,
-        "user_input": user_input
-    })
-    
-    return narrative
-
-# -------------------------------------------------------------  IMPROVED DB WITH CONNECTION MANAGEMENT
-class DB:
-    def __init__(self):
-        import mysql.connector.pooling as pooling
-        
-        try:
-            # FIX: Added pool_reset_session and pool_timeout
-            self.pool = pooling.MySQLConnectionPool(
-                pool_name="fir_pool", 
-                **CFG["mysql"]
-            )
-            
-            # PERFORMANCE: FIR record cache
-            self._fir_cache = {}
-            self._fir_cache_ttl = 30  # 30 seconds cache for FIR records
-            
-            with self._cursor() as cur:
-                cur.execute("SELECT 1")
-                result = cur.fetchone()
-                if result:
-                    log.info("Database connection established successfully")
-                    
-            with self._cursor() as cur:
-                cur.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS fir_records (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        fir_number VARCHAR(100) UNIQUE NOT NULL,
-                        session_id VARCHAR(100),
-                        user_id VARCHAR(100),
-                        complaint_text TEXT,
-                        fir_content TEXT,
-                        violations_json LONGTEXT,
-                        status ENUM('pending', 'finalized') DEFAULT 'pending',
-                        finalized_at TIMESTAMP NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        INDEX idx_fir_number (fir_number),
-                        INDEX idx_session_id (session_id),
-                        INDEX idx_status (status),
-                        INDEX idx_created_at (created_at),
-                        INDEX idx_user_id (user_id)
-                    )
-                    """
-                )
-                log.info("Database tables initialized with basic indexes")
-                
-        except Exception as e:
-            log.error(f"Database initialization failed: {e}")
-            raise RuntimeError(f"Database connection failed: {e}")
-
-    @contextmanager
-    def _cursor(self, autocommit: bool = True):
-        """
-        ZERO DATA LOSS: Context manager with transaction support
-        - autocommit=True: Single operations (SELECT, simple INSERT)
-        - autocommit=False: Multi-step transactions requiring atomicity
-        """
-        conn = None
-        try:
-            conn = self.pool.get_connection()
-            conn.autocommit = autocommit
-            with conn.cursor(dictionary=True) as cur:
-                yield cur
-                # ZERO DATA LOSS: Explicit commit for non-autocommit transactions
-                if not autocommit:
-                    conn.commit()
-        except Exception as e:
-            # ZERO DATA LOSS: Rollback on error to maintain consistency
-            if conn and not autocommit:
-                try:
-                    conn.rollback()
-                    log.warning(f"Transaction rolled back due to error: {e}")
-                except Exception as rollback_error:
-                    log.error(f"Rollback failed: {rollback_error}")
-            log.error(f"Database operation failed: {e}")
-            raise
-        finally:
-            if conn:
-                conn.close()
-
-    def save(self, fir_number: str, session_id: str, complaint: str, content: str, violations_json: str):
-        """ZERO DATA LOSS: Save FIR with transaction to ensure atomicity"""
-        with self._cursor(autocommit=False) as cur:
-            cur.execute(
-                "INSERT INTO fir_records "
-                "(fir_number, session_id, complaint_text, fir_content, violations_json, status) "
-                "VALUES (%s,%s,%s,%s,%s,'pending')",
-                (fir_number, session_id, complaint, content, violations_json),
-            )
-            log.info(f"FIR {fir_number} saved successfully with transaction")
-        
-        # PERFORMANCE: Invalidate cache
-        self._fir_cache.pop(fir_number, None)
-
-    def finalize_fir(self, fir_number: str):
-        """ZERO DATA LOSS: Finalize FIR with transaction"""
-        with self._cursor(autocommit=False) as cur:
-            cur.execute(
-                "UPDATE fir_records SET status = 'finalized', finalized_at = NOW() WHERE fir_number = %s AND status = 'pending'",
-                (fir_number,)
-            )
-            if cur.rowcount == 0:
-                raise ValueError("FIR not found or already finalized")
-            log.info(f"FIR {fir_number} finalized with transaction")
-        
-        # PERFORMANCE: Invalidate cache
-        self._fir_cache.pop(fir_number, None)
-
-    def get_fir(self, fir_number: str) -> Optional[Dict]:
-        import time
-        
-        # PERFORMANCE: Check cache first
-        if fir_number in self._fir_cache:
-            cached_time, cached_fir = self._fir_cache[fir_number]
-            if time.time() - cached_time < self._fir_cache_ttl:
-                return cached_fir
-        
-        with self._cursor(autocommit=True) as cur:
-            cur.execute(
-                "SELECT * FROM fir_records WHERE fir_number = %s",
-                (fir_number,)
-            )
-            result = cur.fetchone()
-            
-            # PERFORMANCE: Cache the result
-            if result:
-                self._fir_cache[fir_number] = (time.time(), result)
-            
-            return result
-    
-    def flush_all(self):
-        """
-        ZERO DATA LOSS: Ensure all pending writes are flushed to disk
-        Called during graceful shutdown to prevent data loss
-        """
-        try:
-            # Force MySQL to flush all pending writes to disk
-            with self._cursor(autocommit=True) as cur:
-                cur.execute("FLUSH TABLES")
-                log.info("Database tables flushed to disk")
-        except Exception as e:
-            log.error(f"Failed to flush database tables: {e}")
-            raise
-
-db = DB()
-
-# Initialize background task manager and FIR service
-task_manager = BackgroundTaskManager(db.pool)
-fir_service = FIRService(task_manager)
-
-# Set database pool for background tasks
-DatabaseTask.set_db_pool(db.pool)
-
-log.info("Background task manager and FIR service initialized")
-
-# ------------------------------------------------------------- REQUEST MODELS
-class RegenerateRequest(BaseModel):
-    """Request model for regenerate endpoint"""
-    step: ValidationStep
-    user_input: Optional[str] = None
-
-# ------------------------------------------------------------- INTERACTIVE STATE & WORKFLOW
-class InteractiveFIRState(BaseModel):
-    session_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    audio_path: Optional[str] = None
-    image_path: Optional[str] = None
-    transcript: Optional[str] = None
-    summary: Optional[str] = None
-    violations: List[Dict[str, Any]] = Field(default_factory=list)
-    fir_narrative: Optional[str] = None
-    fir_content: str = ""
-    fir_number: str = ""
-    error: str = ""
-    steps: List[str] = Field(default_factory=list)
-    current_validation_step: Optional[ValidationStep] = None
-    awaiting_validation: bool = False
-    user_inputs: Dict[str, str] = Field(default_factory=dict)
-
-async def initial_processing(state: InteractiveFIRState) -> InteractiveFIRState:
-    """
-    Initial processing of audio/image files.
-    Routes to either GGUF or Bedrock implementation based on ENABLE_BEDROCK flag.
-    """
-    try:
-        settings = get_settings()
-        
-        if settings.enable_bedrock:
-            # Use Bedrock implementation
-            log.info(f"Session {state.session_id}: Using Bedrock implementation")
-            fir_service = get_fir_generation_service()
-            
-            if not fir_service:
-                raise RuntimeError("Bedrock services not initialized")
-            
-            if state.audio_path:
-                log.info(f"Session {state.session_id}: Starting Transcribe processing")
-                # Use Bedrock Transcribe
-                from fastapi import UploadFile
-                import aiofiles
-                
-                # Read the audio file
-                async with aiofiles.open(state.audio_path, 'rb') as f:
-                    content = await f.read()
-                
-                # Create UploadFile-like object
-                from io import BytesIO
-                audio_file = UploadFile(
-                    filename=state.audio_path,
-                    file=BytesIO(content)
-                )
-                
-                # Transcribe using Bedrock
-                result = await fir_service.transcribe_client.transcribe_audio(audio_file)
-                state.transcript = result.transcript
-                state.steps.append("transcribe_done")
-                
-            elif state.image_path:
-                log.info(f"Session {state.session_id}: Starting Textract processing")
-                # Use Bedrock Textract
-                from fastapi import UploadFile
-                import aiofiles
-                
-                # Read the image file
-                async with aiofiles.open(state.image_path, 'rb') as f:
-                    content = await f.read()
-                
-                # Create UploadFile-like object
-                from io import BytesIO
-                image_file = UploadFile(
-                    filename=state.image_path,
-                    file=BytesIO(content)
-                )
-                
-                # Extract text using Bedrock
-                result = await fir_service.textract_client.extract_text(image_file)
-                state.transcript = result.text
-                state.steps.append("textract_done")
-        else:
-            # Use GGUF implementation (legacy)
-            log.info(f"Session {state.session_id}: Using GGUF implementation")
-            pool = await ModelPool.get()
-            
-            if state.audio_path:
-                log.info(f"Session {state.session_id}: Starting ASR processing")
-                state.transcript = await asyncio.wait_for(
-                    pool.whisper_transcribe(state.audio_path),
-                    timeout=CFG["model_timeouts"]["asr"]
-                )
-                state.steps.append("asr_done")
-                
-            elif state.image_path:
-                log.info(f"Session {state.session_id}: Starting OCR processing")
-                state.transcript = await asyncio.wait_for(
-                    pool.dots_ocr_sync(state.image_path),
-                    timeout=CFG["model_timeouts"]["ocr"]
-                )
-                state.steps.append("ocr_done")
-        
-        session_manager.add_validation_step(state.session_id, ValidationStep.TRANSCRIPT_REVIEW, {
-            "transcript": state.transcript
-        })
-        
-        state.current_validation_step = ValidationStep.TRANSCRIPT_REVIEW
-        state.awaiting_validation = True
-        session_manager.set_session_status(state.session_id, SessionStatus.AWAITING_VALIDATION)
-        
-        log.info(f"Session {state.session_id}: Transcript ready for validation")
-        
-    except Exception as e:
-        state.error = f"processing_error:{e}"
-        log.error(f"Session {state.session_id}: Processing error: {e}")
-        
-    return state
-
-
-# ------------------------------------------------------------- RATE LIMITING
-from collections import defaultdict
-from time import time
-
-class RateLimiter:
-    """Simple in-memory rate limiter"""
-    def __init__(self, max_requests: int = 100, window_seconds: int = 60):
-        self.max_requests = max_requests
-        self.window_seconds = window_seconds
-        self.requests = defaultdict(list)
-    
-    def is_allowed(self, client_id: str) -> bool:
-        now = time()
-        # Clean old requests
-        self.requests[client_id] = [
-            req_time for req_time in self.requests[client_id]
-            if now - req_time < self.window_seconds
-        ]
-        
-        # Check limit
-        if len(self.requests[client_id]) >= self.max_requests:
-            return False
-        
-        self.requests[client_id].append(now)
-        return True
-
-rate_limiter = RateLimiter(
-    max_requests=int(os.getenv("RATE_LIMIT_REQUESTS", 100)),
-    window_seconds=int(os.getenv("RATE_LIMIT_WINDOW", 60))
-)
-
-# CONCURRENCY: Global semaphore to limit concurrent FIR processing
-fir_processing_semaphore = asyncio.Semaphore(CFG["concurrency"]["max_concurrent_requests"])
-
-# RELIABILITY: Global graceful shutdown handler
-graceful_shutdown = GracefulShutdown(shutdown_timeout=30.0)
-
-# RELIABILITY: Global health monitor
-health_monitor = HealthMonitor(check_interval=30.0, history_size=100)
-
-# RELIABILITY: Global auto-recovery handler
-auto_recovery = AutoRecovery(recovery_interval=60.0, max_recovery_attempts=3, recovery_backoff=2.0)
-
-# RELIABILITY: Global dependency health checker
-dependency_checker = DependencyHealthCheck(startup_timeout=300.0, check_interval=5.0)
-
-# ------------------------------------------------------------- FASTAPI WITH CORS
-
-# RELIABILITY: Lifespan context manager for startup/shutdown
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Manage application lifecycle with graceful startup and shutdown"""
-    # Startup
-    log.info("=" * 60)
-    log.info("Application startup initiated")
-    log.info("=" * 60)
-    
-    try:
-        # Get settings to determine which implementation to use
-        settings = get_settings()
-        
-        # Log active implementation prominently
-        implementation = "Bedrock (AWS managed services)" if settings.enable_bedrock else "GGUF (self-hosted models)"
-        log.info("=" * 60)
-        log.info(f"ACTIVE IMPLEMENTATION: {implementation}")
-        log.info(f"Feature Flag ENABLE_BEDROCK: {settings.enable_bedrock}")
-        log.info("=" * 60)
-        
-        # Initialize model pool (always needed for GGUF, may be needed for health checks)
-        pool = await ModelPool.get()
-        log.info("✅ Model pool initialized")
-        
-        # Initialize Bedrock services if enabled
-        fir_generation_service = None
-        
-        if settings.enable_bedrock:
-            log.info("Initializing Bedrock services...")
-            try:
-                # Initialize AWS clients
-                transcribe_client = TranscribeClient(
-                    region=settings.aws.region,
-                    s3_bucket=settings.aws.s3_bucket
-                )
-                
-                textract_client = TextractClient(
-                    region=settings.aws.region,
-                    s3_bucket=settings.aws.s3_bucket
-                )
-                
-                bedrock_client = BedrockClient(
-                    region=settings.aws.region,
-                    model_id=settings.bedrock.model_id
-                )
-                
-                titan_client = TitanEmbeddingsClient(
-                    region=settings.aws.region,
-                    model_id=settings.bedrock.embeddings_model_id
-                )
-                
-                # Initialize vector database
-                vector_db = VectorDBFactory.create(
-                    db_type=settings.vector_db.db_type,
-                    config=settings.vector_db
-                )
-                await vector_db.connect()
-                
-                # Initialize IPC cache
-                ipc_cache = IPCCache(max_size=settings.cache_max_size)
-                
-                # Initialize FIR Generation Service
-                fir_generation_service = FIRGenerationService(
-                    transcribe_client=transcribe_client,
-                    textract_client=textract_client,
-                    bedrock_client=bedrock_client,
-                    titan_client=titan_client,
-                    vector_db=vector_db,
-                    ipc_cache=ipc_cache
-                )
-                
-                # Store in app state and global variable for access in routes
-                app.state.fir_generation_service = fir_generation_service
-                app.state.vector_db = vector_db
-                global _fir_generation_service
-                _fir_generation_service = fir_generation_service
-                
-                log.info("✅ Bedrock services initialized successfully")
-                log.info(f"   - Transcribe client ready (region: {settings.aws.region})")
-                log.info(f"   - Textract client ready (region: {settings.aws.region})")
-                log.info(f"   - Bedrock client ready (model: {settings.bedrock.model_id})")
-                log.info(f"   - Titan Embeddings ready (model: {settings.bedrock.embeddings_model_id})")
-                log.info(f"   - Vector DB ready (type: {settings.vector_db.db_type})")
-                
-            except Exception as e:
-                log.error(f"Failed to initialize Bedrock services: {e}")
-                if settings.enable_bedrock:
-                    # If Bedrock is required, fail startup
-                    raise RuntimeError(f"Bedrock initialization failed: {e}")
-        else:
-            log.info("Bedrock services disabled - using GGUF implementation")
-            log.info("   - GGUF model servers will be used for all operations")
-            log.info("   - Ensure model servers are running and accessible")
-        
-        # Register dependency health checks
-        async def check_model_server():
-            try:
-                resp = await pool._http_client.get(f"{pool.MODEL_SERVER_URL}/health", timeout=5.0)
-                if resp.status_code == 200:
-                    health_data = resp.json()
-                    return health_data.get("status") in ["healthy", "degraded"]
-                return False
-            except:
-                return False
-        
-        async def check_asr_ocr_server():
-            try:
-                resp = await pool._http_client.get(f"{pool.ASR_OCR_SERVER_URL}/health", timeout=5.0)
-                if resp.status_code == 200:
-                    health_data = resp.json()
-                    return health_data.get("status") in ["healthy", "degraded"]
-                return False
-            except:
-                return False
-        
-        async def check_database():
-            try:
-                with db._cursor() as cur:
-                    cur.execute("SELECT 1")
-                    return True
-            except:
-                return False
-        
-        # Register dependencies for startup check
-        dependency_checker.register_dependency("model_server", check_model_server, required=True)
-        dependency_checker.register_dependency("asr_ocr_server", check_asr_ocr_server, required=True)
-        dependency_checker.register_dependency("database", check_database, required=True)
-        
-        # Wait for all dependencies to be healthy before starting
-        log.info("Checking dependencies health...")
-        if not await dependency_checker.wait_for_dependencies():
-            log.error("Failed to start: Required dependencies are not healthy")
-            raise RuntimeError("Dependency health check failed")
-        log.info("✅ All dependencies are healthy")
-        
-        # Register health checks for continuous monitoring
-        health_monitor.register_check("model_server", check_model_server)
-        health_monitor.register_check("asr_ocr_server", check_asr_ocr_server)
-        health_monitor.register_check("database", check_database)
-        
-        # Register auto-recovery handlers
-        async def recover_model_server():
-            """Recovery handler for model server"""
-            log.info("Attempting to recover model server connection...")
-            try:
-                # Reset circuit breaker
-                pool.model_server_circuit.reset()
-                # Test connection
-                resp = await pool._http_client.get(f"{pool.MODEL_SERVER_URL}/health", timeout=10.0)
-                if resp.status_code == 200:
-                    log.info("Model server connection recovered")
-                    return True
-                return False
-            except Exception as e:
-                log.error(f"Model server recovery failed: {e}")
-                return False
-        
-        async def recover_asr_ocr_server():
-            """Recovery handler for ASR/OCR server"""
-            log.info("Attempting to recover ASR/OCR server connection...")
-            try:
-                # Reset circuit breaker
-                pool.asr_ocr_circuit.reset()
-                # Test connection
-                resp = await pool._http_client.get(f"{pool.ASR_OCR_SERVER_URL}/health", timeout=10.0)
-                if resp.status_code == 200:
-                    log.info("ASR/OCR server connection recovered")
-                    return True
-                return False
-            except Exception as e:
-                log.error(f"ASR/OCR server recovery failed: {e}")
-                return False
-        
-        async def recover_database():
-            """Recovery handler for database"""
-            log.info("Attempting to recover database connection...")
-            try:
-                # Try to reconnect by getting a new connection from pool
-                with db._cursor() as cur:
-                    cur.execute("SELECT 1")
-                    result = cur.fetchone()
-                    if result:
-                        log.info("Database connection recovered")
-                        return True
-                return False
-            except Exception as e:
-                log.error(f"Database recovery failed: {e}")
-                return False
-        
-        auto_recovery.register_recovery("model_server", recover_model_server)
-        auto_recovery.register_recovery("asr_ocr_server", recover_asr_ocr_server)
-        auto_recovery.register_recovery("database", recover_database)
-        log.info("✅ Auto-recovery handlers registered")
-        
-        # Start health monitoring with auto-recovery integration
-        health_monitor.start()
-        log.info("✅ Health monitoring started")
-        
-        # Setup signal handlers for graceful shutdown
-        def signal_handler(signum, frame):
-            log.info(f"Received signal {signum}, initiating graceful shutdown...")
-            asyncio.create_task(shutdown_handler())
-        
-        signal.signal(signal.SIGTERM, signal_handler)
-        signal.signal(signal.SIGINT, signal_handler)
-        log.info("✅ Signal handlers registered")
-        
-        log.info("=" * 60)
-        log.info("🚀 Application startup complete - Ready to serve requests")
-        log.info("=" * 60)
-        
-        yield
-        
-    finally:
-        # Shutdown
-        log.info("=" * 60)
-        log.info("Application shutdown initiated")
-        log.info("=" * 60)
-        
-        # Stop accepting new requests and wait for in-flight requests
-        await graceful_shutdown.shutdown()
-        log.info("✅ Graceful shutdown complete - all in-flight requests finished")
-        
-        # ZERO DATA LOSS: Flush all pending data to disk before shutdown
-        try:
-            log.info("Flushing all pending data to disk...")
-            
-            # Flush session database
-            session_manager.flush_all()
-            log.info("✅ Session data flushed")
-            
-            # Flush MySQL database
-            db.flush_all()
-            log.info("✅ MySQL data flushed")
-            
-            log.info("✅ All data successfully persisted to disk")
-        except Exception as e:
-            log.error(f"❌ Data flush failed: {e}")
-            # Continue shutdown even if flush fails to avoid hanging
-        
-        # Stop health monitoring
-        await health_monitor.stop()
-        log.info("✅ Health monitoring stopped")
-        
-        # Cleanup Bedrock resources if initialized
-        if hasattr(app.state, 'vector_db'):
-            try:
-                await app.state.vector_db.close()
-                log.info("✅ Vector database connection closed")
-            except Exception as e:
-                log.error(f"Failed to close vector database: {e}")
-        
-        # Flush CloudWatch metrics
-        try:
-            log.info("Flushing CloudWatch metrics...")
-            await get_metrics().flush_async()
-            log.info("✅ CloudWatch metrics flushed")
-        except Exception as e:
-            log.error(f"Failed to flush CloudWatch metrics: {e}")
-        
-        # Close HTTP client
-        if pool._http_client:
-            await pool._http_client.aclose()
-            log.info("✅ HTTP client closed")
-        
-        log.info("=" * 60)
-        log.info("👋 Application shutdown complete - Zero data loss guaranteed")
-        log.info("=" * 60)
-
-async def shutdown_handler():
-    """Handle graceful shutdown"""
-    await graceful_shutdown.shutdown()
-
-# Pydantic models are now imported from input_validation module
-
-app = FastAPI(version="8.0.0", lifespan=lifespan)
-
-# Setup X-Ray distributed tracing
-setup_xray(app, service_name="afirgen-main-backend")
-
-# CORS Configuration - strict defaults for production
-environment = os.getenv("ENVIRONMENT", "production").lower()
-default_cors = "http://localhost:3000,http://localhost:8000" if environment != "production" else ""
-cors_origins_env = os.getenv("CORS_ORIGINS", default_cors)
-cors_origins = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
-
-if environment == "production":
-    if not cors_origins:
-        raise RuntimeError("CORS_ORIGINS must be explicitly configured in production")
-
-    insecure_origins = {
-        origin for origin in cors_origins
-        if origin == "*" or "localhost" in origin or "127.0.0.1" in origin
-    }
-    if insecure_origins:
-        raise RuntimeError(
-            f"Insecure production CORS origins detected: {sorted(insecure_origins)}. "
-            "Use only trusted HTTPS domains."
-        )
-elif "*" in cors_origins:
-    log.warning("⚠️  CORS configured with wildcard (*) - This should only be used in development!")
-
-log.info(f"CORS allowed origins: {cors_origins}")
-
-# Use enhanced CORS middleware with validation and logging
-from cors_middleware import setup_cors_middleware
-
-setup_cors_middleware(
-    app,
-    cors_origins=cors_origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "X-API-Key"],
-    max_age=3600,
-    use_enhanced=True,  # Enable enhanced middleware with logging
-)
-
-# Setup metrics middleware to track all API requests
-from middleware.metrics_middleware import setup_metrics_middleware
-
-setup_metrics_middleware(app)
-log.info("✅ Metrics middleware enabled - tracking all API requests")
-
-# Rate limiting middleware
-from fastapi import Request
-from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
-
-class RateLimitMiddleware(BaseHTTPMiddleware):
-    """
-    Rate limiting middleware with secure IP detection.
-    
-    SECURITY FIX (BUG-0006): Only trust X-Forwarded-For/X-Real-IP headers when behind
-    a trusted reverse proxy. Otherwise, use request.client.host to prevent IP spoofing.
-    """
-    
-    # Configure trusted proxy IPs (set via environment variable)
-    TRUSTED_PROXIES = set(os.getenv("TRUSTED_PROXY_IPS", "").split(",")) if os.getenv("TRUSTED_PROXY_IPS") else set()
-    TRUST_FORWARDED_HEADERS = os.getenv("TRUST_FORWARDED_HEADERS", "false").lower() == "true"
-    
-    async def dispatch(self, request: Request, call_next):
-        # SECURITY FIX: Secure client IP detection
-        client_ip = self._get_client_ip(request)
-        
-        # Skip rate limiting for health check and docs
-        if request.url.path in ["/health", "/docs", "/redoc", "/openapi.json"]:
-            return await call_next(request)
-        
-        # Check rate limit
-        if not rate_limiter.is_allowed(client_ip):
-            log.warning(f"Rate limit exceeded for IP: {client_ip} on path: {request.url.path}")
-            
-            # Log security event for rate limit violation
-            log_security_event(
-                event_type="rate_limit_exceeded",
-                client_ip=client_ip,
-                path=request.url.path,
-                severity="warning"
-            )
-            
-            # Record rate limit event
-            record_rate_limit_event(client_ip, blocked=True)
-            
-            return JSONResponse(
-                status_code=429,
-                content={
-                    "detail": "Rate limit exceeded. Maximum 100 requests per minute allowed. Please try again later.",
-                    "error": "too_many_requests"
-                },
-                headers={
-                    "Retry-After": "60",
-                    "X-RateLimit-Limit": str(rate_limiter.max_requests),
-                    "X-RateLimit-Window": str(rate_limiter.window_seconds)
-                }
-            )
-        
-        # Record allowed rate limit event
-        record_rate_limit_event(client_ip, blocked=False)
-        
-        response = await call_next(request)
-        
-        # Add rate limit headers to successful responses
-        response.headers["X-RateLimit-Limit"] = str(rate_limiter.max_requests)
-        response.headers["X-RateLimit-Window"] = str(rate_limiter.window_seconds)
-        
-        return response
-    
-    def _get_client_ip(self, request: Request) -> str:
-        """
-        Securely extract client IP address.
-        
-        SECURITY: Only trust X-Forwarded-For/X-Real-IP headers when:
-        1. TRUST_FORWARDED_HEADERS environment variable is set to "true"
-        2. Request comes from a trusted proxy IP (optional additional check)
-        
-        Otherwise, use request.client.host to prevent IP spoofing attacks.
-        """
-        # Default to direct connection IP
-        direct_ip = request.client.host if request.client else "unknown"
-        
-        # If not configured to trust forwarded headers, use direct IP
-        if not self.TRUST_FORWARDED_HEADERS:
-            log.debug(f"Using direct IP (forwarded headers not trusted): {direct_ip}")
-            return direct_ip
-        
-        # If trusted proxies are configured, verify the request comes from a trusted proxy
-        if self.TRUSTED_PROXIES and direct_ip not in self.TRUSTED_PROXIES:
-            log.warning(
-                f"Request from untrusted proxy {direct_ip}, ignoring forwarded headers",
-                extra={"direct_ip": direct_ip, "trusted_proxies": list(self.TRUSTED_PROXIES)}
-            )
-            return direct_ip
-        
-        # Trust forwarded headers (only when explicitly configured)
-        forwarded_for = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
-        if forwarded_for:
-            log.debug(f"Using X-Forwarded-For IP: {forwarded_for}")
-            return forwarded_for
-        
-        real_ip = request.headers.get("X-Real-IP", "").strip()
-        if real_ip:
-            log.debug(f"Using X-Real-IP: {real_ip}")
-            return real_ip
-        
-        # Fallback to direct IP
-        log.debug(f"No forwarded headers found, using direct IP: {direct_ip}")
-        return direct_ip
-
-app.add_middleware(RateLimitMiddleware)
-
-# Security headers middleware
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
-        
-        # Security headers
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
-        
-        return response
-
-app.add_middleware(SecurityHeadersMiddleware)
-
-# API Authentication middleware
-class APIAuthMiddleware(BaseHTTPMiddleware):
-    """
-    Middleware to enforce API key authentication on all endpoints except public ones.
-    
-    SECURITY FIX (BUG-0008): /authenticate endpoint added to public endpoints
-    to avoid circular authentication (endpoint has its own auth_key validation).
-    """
-    
-    # Public endpoints that don't require API key authentication
-    PUBLIC_ENDPOINTS = {
-        "/health",           # Health check
-        "/docs",             # API documentation
-        "/redoc",            # ReDoc documentation
-        "/openapi.json",     # OpenAPI schema
-        "/authenticate"      # FIX: Has its own auth_key validation
-    }
-    
-    async def dispatch(self, request: Request, call_next):
-        # Always allow CORS preflight requests
-        if request.method == "OPTIONS":
-            return await call_next(request)
-
-        # Skip authentication for public endpoints
-        if request.url.path in self.PUBLIC_ENDPOINTS:
-            return await call_next(request)
-        
-        # Get API key from header
-        api_key = request.headers.get("X-API-Key") or request.headers.get("Authorization")
-        
-        # Handle Authorization header with Bearer scheme
-        if api_key and api_key.startswith("Bearer "):
-            api_key = api_key[7:]  # Remove "Bearer " prefix
-        
-        # Validate API key exists in config
-        if not CFG.get("api_key"):
-            log.error("API authentication attempted but API_KEY not configured")
-            
-            # Log security event
-            log_security_event(
-                event_type="api_key_not_configured",
-                severity="critical",
-                path=request.url.path
-            )
-            
-            raise HTTPException(
-                status_code=500,
-                detail="API authentication not properly configured"
-            )
-        
-        # Validate API key
-        if not api_key:
-            log.warning(
-                f"Missing API key for {request.url.path}",
-                extra={
-                    "path": request.url.path,
-                    "client_ip": request.client.host if request.client else "unknown",
-                    "method": request.method
-                }
-            )
-            
-            # Log security event
-            log_security_event(
-                event_type="missing_api_key",
-                severity="warning",
-                path=request.url.path,
-                client_ip=request.client.host if request.client else "unknown"
-            )
-            
-            raise HTTPException(
-                status_code=401,
-                detail="API key required. Include X-API-Key header or Authorization: Bearer <key>"
-            )
-        
-        # Constant-time comparison to prevent timing attacks
-        import hmac
-        if not hmac.compare_digest(api_key, CFG["api_key"]):
-            log.warning(
-                f"Invalid API key attempt for {request.url.path}",
-                extra={
-                    "path": request.url.path,
-                    "client_ip": request.client.host if request.client else "unknown",
-                    "method": request.method
-                }
-            )
-            
-            # Log security event
-            log_security_event(
-                event_type="invalid_api_key",
-                severity="high",
-                path=request.url.path,
-                client_ip=request.client.host if request.client else "unknown"
-            )
-            
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid API key"
-            )
-        
-        # API key is valid, proceed with request
-        return await call_next(request)
-
-app.add_middleware(APIAuthMiddleware)
-
-# RELIABILITY: Request tracking middleware for graceful shutdown
-class RequestTrackingMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        # Skip tracking for health check
-        if request.url.path == "/health":
-            return await call_next(request)
-        
-        # Track request start time for metrics
-        start_time = asyncio.get_event_loop().time()
-        
-        try:
-            graceful_shutdown.request_started()
-            response = await call_next(request)
-            
-            # Record API request metrics
-            duration_ms = (asyncio.get_event_loop().time() - start_time) * 1000
-            record_api_request(
-                endpoint=request.url.path,
-                method=request.method,
-                status_code=response.status_code,
-                duration_ms=duration_ms
-            )
-            
-            return response
-        except RuntimeError as e:
-            if "shutting down" in str(e):
-                return JSONResponse(
-                    status_code=503,
-                    content={"detail": "Server is shutting down"}
-                )
-            raise
-        except Exception as e:
-            # Record error metrics
-            duration_ms = (asyncio.get_event_loop().time() - start_time) * 1000
-            record_api_request(
-                endpoint=request.url.path,
-                method=request.method,
-                status_code=500,
-                duration_ms=duration_ms
-            )
-            raise
-        finally:
-            graceful_shutdown.request_completed()
-
-app.add_middleware(RequestTrackingMiddleware)
-
-@app.post("/process", response_model=FIRResp)
-@trace_subsegment("process_fir_request")
-async def process_endpoint(
-    audio: Optional[UploadFile] = File(None),
-    image: Optional[UploadFile] = File(None),
-    text: Optional[str] = None,
-):
-    """Start FIR processing with enhanced validation and error handling"""
-    # Add X-Ray annotations
-    add_trace_annotation("endpoint", "/process")
-    add_trace_annotation("has_audio", bool(audio))
-    add_trace_annotation("has_image", bool(image))
-    add_trace_annotation("has_text", bool(text))
-    
-    # Validate that at least one input is provided
-    if not any([audio, image, text]):
-        add_trace_annotation("error", "no_input")
-        raise HTTPException(status_code=400, detail="No input provided. Please provide audio, image, or text.")
-    
-    # Validate only one input type is provided
-    input_count = sum([bool(audio), bool(image), bool(text)])
-    if input_count > 1:
-        raise HTTPException(status_code=400, detail="Please provide only one input type (audio, image, or text)")
-    
-    # Validate file uploads
-    if audio:
-        validate_file_upload(audio, ValidationConstants.ALLOWED_AUDIO_TYPES)
-    
-    if image:
-        validate_file_upload(image, ValidationConstants.ALLOWED_IMAGE_TYPES)
-    
-    # Validate and sanitize text input
-    if text:
-        if len(text) < ValidationConstants.MIN_TEXT_LENGTH:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Text input too short. Minimum length: {ValidationConstants.MIN_TEXT_LENGTH} characters"
-            )
-        
-        if len(text) > ValidationConstants.MAX_TEXT_LENGTH:
-            raise HTTPException(
-                status_code=413,
-                detail=f"Text input too long. Maximum length: {ValidationConstants.MAX_TEXT_LENGTH} characters"
-            )
-        
-        # Sanitize text input
-        text = sanitize_text(text, allow_html=False)
-
-    # CONCURRENCY: Use semaphore to limit concurrent FIR processing
-    async with fir_processing_semaphore:
-        state = InteractiveFIRState()
-        
-        async with TempFileManager() as tmp_manager:
-            try:
-                if audio:
-                    state.audio_path = await tmp_manager.save_audio(audio)
-                elif image:
-                    state.image_path = await tmp_manager.save_image(image)
-                elif text:
-                    state.transcript = text
-                    session_manager.add_validation_step(state.session_id, ValidationStep.TRANSCRIPT_REVIEW, {
-                        "transcript": state.transcript
-                    })
-                    state.current_validation_step = ValidationStep.TRANSCRIPT_REVIEW
-                    state.awaiting_validation = True
-                    session_manager.set_session_status(state.session_id, SessionStatus.AWAITING_VALIDATION)
-                
-                session_manager.create_session(state.session_id, state.dict())
-                
-                if audio or image:
-                    state = await initial_processing(state)
-                    session_manager.update_session(state.session_id, state.dict())
-                
-                if state.error:
-                    return FIRResp(
-                        success=False,
-                        session_id=state.session_id,
-                        error=state.error,
-                        steps=state.steps
-                    )
-                
-                return FIRResp(
-                    success=True,
-                    session_id=state.session_id,
-                    steps=state.steps,
-                    requires_validation=True,
-                    current_step=state.current_validation_step,
-                    content_for_validation={"transcript": state.transcript}
-                )
-                
-            except HTTPException:
-                raise
-            except Exception as e:
-                log.error(f"Processing error: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/validate", response_model=ValidationResponse)
-async def validate_step(validation_req: ValidatedValidationRequest):
-    """Enhanced validation with better timeout handling and input validation"""
-    # Session ID is already validated by Pydantic model
-    session_id = validation_req.session_id
-    
-    session = session_manager.get_session(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found or expired")
-    
-    if session["status"] != SessionStatus.AWAITING_VALIDATION:
-        raise HTTPException(status_code=400, detail="Session not awaiting validation")
-    
-    # User input is already sanitized by Pydantic validator
-    user_input = validation_req.user_input
-    
-    state_dict = session["state"]
-    current_step = state_dict.get("current_validation_step")
-    
-    try:
-        if not validation_req.approved:
-            return ValidationResponse(
-                success=True,
-                session_id=session_id,
-                current_step=current_step,
-                content={"message": "Please provide corrections or additional input"},
-                message="Validation rejected. You can provide additional input to improve the result.",
-                requires_validation=True
-            )
-        
-        # Process validation steps with enhanced timeouts
-        if current_step == ValidationStep.TRANSCRIPT_REVIEW:
-            summary = await generate_summary_with_validation(
-                session_id, 
-                state_dict["transcript"], 
-                user_input
-            )
-            state_dict.update({
-                "summary": summary,
-                "current_validation_step": ValidationStep.SUMMARY_REVIEW,
-                "user_inputs": {**state_dict.get("user_inputs", {}), "transcript": user_input or ""}
-            })
-            
-            next_content = {"summary": summary, "original_transcript": state_dict["transcript"]}
-            next_message = "Summary generated. Please review and validate."
-            
-        elif current_step == ValidationStep.SUMMARY_REVIEW:
-            violations = await find_violations_with_validation(
-                session_id,
-                state_dict["summary"],
-                user_input
-            )
-            state_dict.update({
-                "violations": violations,
-                "current_validation_step": ValidationStep.VIOLATIONS_REVIEW,
-                "user_inputs": {**state_dict.get("user_inputs", {}), "summary": user_input or ""}
-            })
-            
-            next_content = {"violations": violations, "summary": state_dict["summary"]}
-            next_message = "Legal violations identified. Please review and validate."
-            
-        elif current_step == ValidationStep.VIOLATIONS_REVIEW:
-            narrative = await generate_fir_narrative_with_validation(
-                session_id,
-                state_dict["transcript"],
-                user_input
-            )
-            state_dict.update({
-                "fir_narrative": narrative,
-                "current_validation_step": ValidationStep.FIR_NARRATIVE_REVIEW,
-                "user_inputs": {**state_dict.get("user_inputs", {}), "violations": user_input or ""}
-            })
-            
-            next_content = {"fir_narrative": narrative}
-            next_message = "FIR narrative generated. Please review and validate."
-            
-        elif current_step == ValidationStep.FIR_NARRATIVE_REVIEW:
-            fir_number = f"FIR-{session_id[:8]}-{datetime.now():%Y%m%d%H%M%S}"
-            
-            # Generate structured FIR data
-            fir_data = get_fir_data(state_dict, fir_number)
-            
-            # Render FIR using template
-            fir_content = fir_template.format(**fir_data).strip()
-            
-            # Use DateTimeEncoder for JSON serialization
-            violations_json = json.dumps(state_dict["violations"], cls=DateTimeEncoder)
-            
-            # Save to database
-            db.save(fir_number, session_id, state_dict["transcript"], fir_content, violations_json)
-            
-            state_dict.update({
-                "fir_number": fir_number,
-                "fir_content": fir_content,
-                "current_validation_step": ValidationStep.FINAL_REVIEW,
-                "user_inputs": {**state_dict.get("user_inputs", {}), "narrative": user_input or ""}
-            })
-            
-            next_content = {"fir_content": fir_content, "fir_number": fir_number}
-            next_message = "FIR generated successfully. Final review required."
-
-            
-        elif current_step == ValidationStep.FINAL_REVIEW:
-            session_manager.set_session_status(session_id, SessionStatus.COMPLETED)
-            state_dict["awaiting_validation"] = False
-            
-            session_manager.update_session(session_id, state_dict)
-            
-            # Trigger background tasks for FIR completion
-            # Note: Email is optional - would need to be collected from user in real implementation
-            fir_number = state_dict.get("fir_number")
-            if fir_number:
-                try:
-                    background_task_ids = fir_service.on_fir_completed(
-                        fir_number=fir_number,
-                        session_id=session_id,
-                        recipient_email=None,  # TODO: Get from user input if available
-                        generate_report=True,
-                        update_analytics=True
-                    )
-                    log.info(f"Background tasks triggered for FIR {fir_number}: {background_task_ids}")
-                except Exception as e:
-                    # Log error but don't fail the request
-                    log.error(f"Failed to trigger background tasks for FIR {fir_number}: {e}")
-            
-            return ValidationResponse(
-                success=True,
-                session_id=session_id,
-                current_step=ValidationStep.FINAL_REVIEW,
-                content={"fir_content": state_dict["fir_content"], "fir_number": state_dict["fir_number"]},
-                message="FIR processing completed successfully!",
-                requires_validation=False,
-                completed=True
-            )
-        
-        session_manager.update_session(session_id, state_dict)
-        
-        return ValidationResponse(
-            success=True,
-            session_id=session_id,
-            current_step=state_dict["current_validation_step"],
-            content=next_content,
-            message=next_message,
-            requires_validation=True
-        )
-        
-    except asyncio.TimeoutError:
-        log.error(f"Validation timeout for session {session_id}")
-        raise HTTPException(status_code=504, detail="Processing timeout - please try again")
-    except Exception as e:
-        log.error(f"Validation error: {e}")
-        raise HTTPException(status_code=500, detail=f"Validation failed: {e}")
-
-
-@app.get("/session/{session_id}/status")
-async def get_session_status(session_id: str):
-    """Get session status with validated session ID"""
-    # Validate session_id parameter
-    session_id = validate_session_id_param(session_id)
-    
-    # PERFORMANCE: Use async to avoid blocking
-    session = await asyncio.to_thread(session_manager.get_session, session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found or expired")
-    
-    # PERFORMANCE: Return minimal data for faster serialization
-    return {
-        "session_id": session_id,
-        "status": session["status"],
-        "current_step": session["state"].get("current_validation_step"),
-        "awaiting_validation": session["state"].get("awaiting_validation", False),
-        "validation_history": session["state"].get("validation_history", []),
-        "created_at": session["created_at"].isoformat(),
-        "last_activity": session["last_activity"].isoformat()
-    }
-
-@app.post("/regenerate/{session_id}")
-async def regenerate_step(session_id: str, regenerate_req: RegenerateRequest):
-    """Regenerate a validation step with validated inputs"""
-    # Validate session_id parameter
-    session_id = validate_session_id_param(session_id)
-    
-    # Extract step and user_input from request body
-    step = regenerate_req.step
-    user_input = regenerate_req.user_input
-    
-    session = session_manager.get_session(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found or expired")
-    
-    # Validate and sanitize user input
-    if user_input:
-        if len(user_input) > ValidationConstants.MAX_USER_INPUT_LENGTH:
-            raise HTTPException(
-                status_code=400,
-                detail=f"User input too long. Maximum length: {ValidationConstants.MAX_USER_INPUT_LENGTH} characters"
-            )
-        user_input = sanitize_text(user_input, allow_html=False)
-    
-    state_dict = session["state"]
-    
-    try:
-        if step == ValidationStep.SUMMARY_REVIEW:
-            summary = await generate_summary_with_validation(session_id, state_dict["transcript"], user_input)
-            state_dict["summary"] = summary
-            content = {"summary": summary}
-            
-        elif step == ValidationStep.VIOLATIONS_REVIEW:
-            violations = await find_violations_with_validation(session_id, state_dict["summary"], user_input)
-            state_dict["violations"] = violations
-            content = {"violations": violations}
-            
-        elif step == ValidationStep.FIR_NARRATIVE_REVIEW:
-            narrative = await generate_fir_narrative_with_validation(session_id, state_dict["transcript"], user_input)
-            state_dict["fir_narrative"] = narrative
-            content = {"fir_narrative": narrative}
-            
-        else:
-            raise HTTPException(status_code=400, detail="Invalid step for regeneration")
-        
-        session_manager.update_session(session_id, state_dict)
-        
-        return {
-            "success": True,
-            "session_id": session_id,
-            "step": step,
-            "content": content,
-            "message": f"Content regenerated for {step}"
-        }
-        
-    except Exception as e:
-        log.error(f"Regeneration error: {e}")
-        raise HTTPException(status_code=500, detail=f"Regeneration failed: {e}")
-
-@app.post("/authenticate", response_model=AuthResponse)
-async def authenticate_fir(auth_req: ValidatedAuthRequest):
-    """Authenticate and finalize FIR with validated inputs"""
-    # Inputs are already validated by Pydantic model
-    
-    # Validate auth key exists
-    if not CFG["auth_key"] or CFG["auth_key"] == "default-auth-key":
-        log.error("Authentication attempted with default or missing auth key")
-        raise HTTPException(status_code=500, detail="Authentication not properly configured")
-    
-    # Constant-time comparison to prevent timing attacks
-    import hmac
-    if not hmac.compare_digest(auth_req.auth_key, CFG["auth_key"]):
-        log.warning(f"Failed authentication attempt for FIR: {auth_req.fir_number}")
-        raise HTTPException(status_code=401, detail="Invalid authentication key")
-    
-    try:
-        fir_record = db.get_fir(auth_req.fir_number)
-        if not fir_record:
-            raise HTTPException(status_code=404, detail="FIR not found")
-        
-        if fir_record["status"] == "finalized":
-            raise HTTPException(status_code=400, detail="FIR already finalized")
-        
-        db.finalize_fir(auth_req.fir_number)
-        
-        # Trigger background tasks for FIR finalization
-        try:
-            background_task_ids = fir_service.on_fir_finalized(
-                fir_number=auth_req.fir_number,
-                recipient_email=None  # TODO: Get from user input if available
-            )
-            log.info(f"Finalization tasks triggered for FIR {auth_req.fir_number}: {background_task_ids}")
-        except Exception as e:
-            # Log error but don't fail the request
-            log.error(f"Failed to trigger finalization tasks for FIR {auth_req.fir_number}: {e}")
-        
-        return AuthResponse(
-            success=True,
-            message="FIR successfully finalized",
-            fir_number=auth_req.fir_number
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.error(f"Authentication error: {e}")
-        raise HTTPException(status_code=500, detail="Authentication failed")
-
-@app.get("/fir/{fir_number}")
-async def get_fir_status(fir_number: str):
-    """Get FIR status with validated FIR number"""
-    # Validate FIR number parameter
-    fir_number = validate_fir_number_param(fir_number)
-    
-    try:
-        # PERFORMANCE: Use async to avoid blocking
-        fir_record = await asyncio.to_thread(db.get_fir, fir_number)
-        if not fir_record:
-            raise HTTPException(status_code=404, detail="FIR not found")
-        
-        # Return full FIR data including content (Bug 9 fix)
-        # Frontend expects full content from this endpoint
-        return {
-            "fir_number": fir_number,
-            "status": fir_record["status"],
-            "created_at": fir_record["created_at"],
-            "finalized_at": fir_record.get("finalized_at"),
-            "fir_content": fir_record.get("fir_content")
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.error(f"Error retrieving FIR: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve FIR")
-
-@app.get("/fir/{fir_number}/content")
-async def get_fir_content(fir_number: str):
-    """Get full FIR content with validated FIR number - separate endpoint for performance"""
-    # Validate FIR number parameter
-    fir_number = validate_fir_number_param(fir_number)
-    
-    try:
-        # PERFORMANCE: Use async to avoid blocking
-        fir_record = await asyncio.to_thread(db.get_fir, fir_number)
-        if not fir_record:
-            raise HTTPException(status_code=404, detail="FIR not found")
-            
-        return {
-            "fir_number": fir_number,
-            "status": fir_record["status"],
-            "created_at": fir_record["created_at"],
-            "finalized_at": fir_record.get("finalized_at"),
-            "content": fir_record["fir_content"]
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.error(f"Error retrieving FIR content: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve FIR content")
-
-@app.get("/health")
-async def health():
-    """Health check endpoint with implementation status"""
-    start_time = asyncio.get_event_loop().time()
-    healthy = False
-    
-    try:
-        settings = get_settings()
-        implementation = "bedrock" if settings.enable_bedrock else "gguf"
-        
-        pool = await ModelPool.get()
-        
-        # Check model servers (always needed for GGUF, optional for Bedrock)
-        model_server_status = {"status": "not_checked"}
-        asr_ocr_server_status = {"status": "not_checked"}
-        
-        if not settings.enable_bedrock:
-            # GGUF mode - check model servers
-            # CONCURRENCY: Use shared HTTP client for health checks
-            model_resp = await pool._http_client.get(f"{pool.MODEL_SERVER_URL}/health", timeout=5.0)
-            model_server_status = model_resp.json()
-            
-            # Check ASR/OCR server
-            asr_ocr_resp = await pool._http_client.get(f"{pool.ASR_OCR_SERVER_URL}/health", timeout=5.0)
-            asr_ocr_server_status = asr_ocr_resp.json()
-            
-            overall_status = "healthy"
-            if model_server_status.get("status") != "healthy" or asr_ocr_server_status.get("status") != "healthy":
-                overall_status = "degraded"
-        else:
-            # Bedrock mode - check Bedrock services
-            fir_service = get_fir_generation_service()
-            if fir_service:
-                overall_status = "healthy"
-            else:
-                overall_status = "degraded"
-        
-        healthy = overall_status == "healthy"
-        
-        # Record health check metrics
-        duration_ms = (asyncio.get_event_loop().time() - start_time) * 1000
-        record_health_check("main-backend", healthy, duration_ms)
-        
-        # Build response
-        response = {
-            "status": overall_status,
-            "implementation": implementation,
-            "enable_bedrock": settings.enable_bedrock,
-            "database": "connected",
-            "session_persistence": "sqlite",
-            "magic_available": MAGIC_AVAILABLE,
-            "concurrency": {
-                "max_concurrent_requests": CFG["concurrency"]["max_concurrent_requests"],
-                "max_concurrent_model_calls": CFG["concurrency"]["max_concurrent_model_calls"],
-                "http_pool_size": CFG["concurrency"]["http_pool_connections"],
-            }
-        }
-        
-        # Add implementation-specific details
-        if settings.enable_bedrock:
-            response["bedrock"] = {
-                "model_id": settings.bedrock.model_id,
-                "embeddings_model_id": settings.bedrock.embeddings_model_id,
-                "vector_db_type": settings.vector_db.db_type,
-                "services_initialized": fir_service is not None
-            }
-        else:
-            response["gguf"] = {
-                "model_server": model_server_status,
-                "asr_ocr_server": asr_ocr_server_status,
-                "kb_collections": len(KB.cols),
-                "kb_cache_size": len(KB._query_cache)
-            }
-            response["reliability"] = {
-                "circuit_breakers": {
-                    "model_server": pool.model_server_circuit.get_status(),
-                    "asr_ocr_server": pool.asr_ocr_circuit.get_status()
-                },
-                "graceful_shutdown": graceful_shutdown.get_status(),
-                "health_monitor": health_monitor.get_status()
-            }
-        
-        return response
-    except Exception as e:
-        log.error(f"Health check failed: {e}")
-        
-        # Record unhealthy status
-        duration_ms = (asyncio.get_event_loop().time() - start_time) * 1000
-        record_health_check("main-backend", False, duration_ms)
-        
-        settings = get_settings()
-        return {
-            "status": "unhealthy",
-            "implementation": "bedrock" if settings.enable_bedrock else "gguf",
-            "enable_bedrock": settings.enable_bedrock,
-            "error": str(e)
-        }
-
-# PERFORMANCE: Metrics cache
-_metrics_cache = None
-_metrics_cache_time = 0
-_metrics_cache_ttl = 10  # 10 seconds cache for metrics
-
-@app.get("/metrics")
-async def get_metrics():
-    """PERFORMANCE: Endpoint for monitoring performance metrics with caching"""
-    import time
-    
-    global _metrics_cache, _metrics_cache_time
-    
-    # PERFORMANCE: Return cached metrics if available
-    if _metrics_cache and (time.time() - _metrics_cache_time) < _metrics_cache_ttl:
-        return _metrics_cache
-    
-    try:
-        def _get_metrics():
-            # Session statistics
-            with sqlite3.connect(CFG["session_db_path"]) as conn:
-                cursor = conn.execute("""
-                    SELECT 
-                        status,
-                        COUNT(*) as count,
-                        AVG(CAST((julianday(last_activity) - julianday(created_at)) * 86400 AS INTEGER)) as avg_duration_seconds
-                    FROM sessions
-                    WHERE created_at > datetime('now', '-1 hour')
-                    GROUP BY status
-                """)
-                session_stats = [
-                    {"status": row[0], "count": row[1], "avg_duration": row[2]}
-                    for row in cursor.fetchall()
-                ]
-            
-            # FIR statistics
-            with db._cursor() as cur:
-                cur.execute("""
-                    SELECT 
-                        status,
-                        COUNT(*) as count,
-                        AVG(TIMESTAMPDIFF(SECOND, created_at, COALESCE(finalized_at, NOW()))) as avg_time_seconds
-                    FROM fir_records
-                    WHERE created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)
-                    GROUP BY status
-                """)
-                fir_stats = cur.fetchall()
-            
-            return {
-                "timestamp": datetime.now().isoformat(),
-                "sessions": {
-                    "recent_hour": session_stats,
-                    "cache_size": len(KB._query_cache)
-                },
-                "firs": {
-                    "recent_hour": fir_stats
-                },
-                "rate_limiter": {
-                    "active_clients": len(rate_limiter.requests)
-                }
-            }
-        
-        # PERFORMANCE: Use async to avoid blocking
-        metrics = await asyncio.to_thread(_get_metrics)
-        
-        # PERFORMANCE: Cache the result
-        _metrics_cache = metrics
-        _metrics_cache_time = time.time()
-        
-        return metrics
-        
-    except Exception as e:
-        log.error(f"Metrics collection failed: {e}")
-        return {"error": str(e)}
-
-@app.get("/prometheus/metrics")
-async def prometheus_metrics():
-    """
-    Prometheus metrics endpoint for scraping.
-    
-    Exposes all collected metrics in Prometheus exposition format.
-    This endpoint is designed to be scraped by Prometheus servers.
-    
-    Validates: Requirements 5.7
-    """
-    from fastapi.responses import Response
-    
-    try:
-        # Get metrics in Prometheus format
-        metrics_data = MetricsCollector.get_metrics()
-        content_type = MetricsCollector.get_content_type()
-        
-        # Return with proper Prometheus content type
-        return Response(
-            content=metrics_data,
-            media_type=content_type
-        )
-    except Exception as e:
-        log.error(f"Failed to generate Prometheus metrics: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate metrics")
-
-
-@app.get("/reliability")
-async def get_reliability_status():
-    """RELIABILITY: Endpoint for monitoring reliability components and uptime"""
-    try:
-        pool = await ModelPool.get()
-        
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "circuit_breakers": {
-                "model_server": pool.model_server_circuit.get_status(),
-                "asr_ocr_server": pool.asr_ocr_circuit.get_status()
-            },
-            "graceful_shutdown": graceful_shutdown.get_status(),
-            "health_monitor": health_monitor.get_status(),
-            "auto_recovery": auto_recovery.get_status(),
-            "uptime_target": "99.9%",
-            "max_downtime_per_month": "43.8 minutes"
-        }
-    except Exception as e:
-        log.error(f"Reliability status collection failed: {e}")
-        return {"error": str(e)}
-
-@app.post("/reliability/circuit-breaker/{name}/reset")
-async def reset_circuit_breaker(name: str):
-    """RELIABILITY: Manually reset a circuit breaker with validated name"""
-    # Validate circuit breaker name
-    name = validate_circuit_breaker_name(name)
-    
-    try:
-        pool = await ModelPool.get()
-        
-        if name == "model_server":
-            pool.model_server_circuit.reset()
-            auto_recovery.reset_recovery("model_server")
-        elif name == "asr_ocr_server":
-            pool.asr_ocr_circuit.reset()
-            auto_recovery.reset_recovery("asr_ocr_server")
-        
-        log.info(f"Circuit breaker '{name}' manually reset")
-        return {
-            "success": True,
-            "message": f"Circuit breaker '{name}' has been reset",
-            "status": pool.model_server_circuit.get_status() if name == "model_server" else pool.asr_ocr_circuit.get_status()
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.error(f"Failed to reset circuit breaker: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/reliability/auto-recovery/{name}/trigger")
-async def trigger_manual_recovery(name: str):
-    """RELIABILITY: Manually trigger auto-recovery for a service with validated name"""
-    # Validate recovery handler name
-    name = validate_recovery_name(name)
-    
-    try:
-        log.info(f"Manual recovery triggered for: {name}")
-        success = await auto_recovery.trigger_recovery(name)
-        
-        return {
-            "success": success,
-            "message": f"Recovery {'succeeded' if success else 'failed'} for '{name}'",
-            "status": auto_recovery.get_status(name)
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.error(f"Failed to trigger recovery: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/view_fir_records", response_class=HTMLResponse)
-def view_fir_records():
-    with db._cursor() as cur:
-        cur.execute("SELECT fir_number, status, created_at FROM fir_records ORDER BY created_at DESC LIMIT 100")
-        records = cur.fetchall()
-
-    # Simple HTML table to display records
-    html_content = """
-    <html>
-      <head><title>FIR Records</title></head>
-      <body>
-        <h1>FIR Records (Latest 100)</h1>
-        <table border="1" cellspacing="0" cellpadding="5">
-          <tr>
-            <th>FIR Number</th>
-            <th>Status</th>
-            <th>Created At</th>
-            <th>View FIR</th>
-          </tr>
-    """
-
-    for r in records:
-        html_content += f"""
-          <tr>
-            <td>{r['fir_number']}</td>
-            <td>{r['status']}</td>
-            <td>{r['created_at']}</td>
-            <td><a href="/view_fir/{r['fir_number']}" target="_blank">View</a></td>
-          </tr>
-        """
-
-    html_content += """
-        </table>
-      </body>
-    </html>
-    """
-
-    return html_content
-
-
-@app.get("/view_fir/{fir_number}", response_class=HTMLResponse)
-def view_fir(fir_number: str):
-    """View FIR content as HTML with validated FIR number"""
-    # Validate FIR number parameter
-    try:
-        fir_number = validate_fir_number_param(fir_number)
-    except HTTPException:
-        return HTMLResponse(content="<h2>Invalid FIR number format</h2>", status_code=400)
-    
-    record = db.get_fir(fir_number)
-    if not record:
-        return HTMLResponse(content="<h2>FIR not found</h2>", status_code=404)
-
-    # Escape HTML to prevent XSS
-    import html
-    fir_text = html.escape(record['fir_content']).replace('\n', '<br/>')
-    fir_number_escaped = html.escape(fir_number)
-    
-    return f"""
-    <html>
-      <head><title>View FIR {fir_number_escaped}</title></head>
-      <body>
-        <h1>FIR Number: {fir_number_escaped}</h1>
-        <div style="white-space: pre-wrap; font-family: monospace;">{fir_text}</div>
-      </body>
-    </html>
-    """
-@app.get("/list_firs")
-async def list_firs(
-    cursor: Optional[str] = None, 
-    limit: Optional[int] = None,
-    fields: Optional[str] = None
-):
-    """PERFORMANCE: Optimized list endpoint with cursor-based pagination and field filtering
-    
-    Requirements: 3.2, 3.3, 3.4
-    """
-    from utils.pagination import PaginationHandler
-    from utils.field_filter import FieldFilter
-    
-    # Validate query parameters
-    limit = validate_limit_param(limit, default=20, max_limit=100)
-    
-    # Parse fields parameter
-    requested_fields = FieldFilter.parse_fields_param(fields)
-    
-    # Define allowed fields for FIR records
-    allowed_fields = ['fir_number', 'status', 'created_at', 'id']
-    
-    # Validate requested fields
-    if requested_fields:
-        if not FieldFilter.validate_fields(requested_fields, allowed_fields):
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Invalid fields requested. Allowed fields: {', '.join(allowed_fields)}"
-            )
-    
-    # Decode cursor if provided
-    cursor_info = PaginationHandler.decode_cursor(cursor) if cursor else None
-    
-    def _list_firs():
-        with db._cursor() as cur:
-            # Fetch limit+1 to check if there are more pages
-            fetch_limit = limit + 1
-            
-            # Build SELECT clause based on requested fields
-            if requested_fields:
-                # Always include 'id' and 'created_at' for pagination, even if not requested
-                select_fields = set(requested_fields) | {'id', 'created_at'}
-                select_clause = ', '.join(select_fields)
-            else:
-                select_clause = 'fir_number, status, created_at, id'
-            
-            if cursor_info:
-                # Use cursor-based pagination
-                cur.execute(
-                    f"SELECT {select_clause} FROM fir_records "
-                    "WHERE created_at < %s OR (created_at = %s AND id < %s) "
-                    "ORDER BY created_at DESC, id DESC LIMIT %s",
-                    (cursor_info.last_value, cursor_info.last_value, cursor_info.last_id, fetch_limit)
-                )
-            else:
-                # First page
-                cur.execute(
-                    f"SELECT {select_clause} FROM fir_records "
-                    "ORDER BY created_at DESC, id DESC LIMIT %s",
-                    (fetch_limit,)
-                )
-            
-            records = cur.fetchall()
-            
-            # Get total count for metadata
-            cur.execute("SELECT COUNT(*) as total FROM fir_records")
-            total_count = cur.fetchone()['total']
-            
-            return records, total_count
-    
-    # PERFORMANCE: Use async to avoid blocking
-    records, total_count = await asyncio.to_thread(_list_firs)
-    
-    # Apply field filtering to records
-    if requested_fields:
-        records = FieldFilter.filter_fields(records, requested_fields)
-    
-    # Create paginated response
-    paginated = PaginationHandler.create_paginated_response(
-        items=records,
-        total_count=total_count,
-        limit=limit,
-        sort_field='created_at'
+from PIL import Image
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas as pdf_canvas
+from reportlab.lib.units import inch
+import httpx
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+class Config:
+    """Application configuration from environment variables"""
+    
+    # AWS Configuration
+    AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
+    S3_BUCKET_NAME: str = os.getenv("S3_BUCKET_NAME", "")
+    BEDROCK_MODEL_ID: str = os.getenv(
+        "BEDROCK_MODEL_ID",
+        "anthropic.claude-3-sonnet-20240229-v1:0"
     )
     
-    return paginated.to_dict()
+    # Database Configuration
+    DB_HOST: str = os.getenv("DB_HOST", "")
+    DB_PORT: int = int(os.getenv("DB_PORT", "3306"))
+    DB_USER: str = os.getenv("DB_USER", "admin")
+    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "")
+    DB_NAME: str = os.getenv("DB_NAME", "afirgen_db")
+    
+    # API Configuration
+    API_KEY: str = os.getenv("API_KEY", "")
+    
+    # Rate Limiting
+    RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "100"))
+    
+    # File Validation
+    MAX_FILE_SIZE_MB: int = int(os.getenv("MAX_FILE_SIZE_MB", "10"))
+    ALLOWED_AUDIO_EXTENSIONS: set = {".wav", ".mp3", ".mpeg"}
+    ALLOWED_IMAGE_EXTENSIONS: set = {".jpg", ".jpeg", ".png"}
+    
+    # Timeouts
+    TRANSCRIBE_TIMEOUT_SECONDS: int = int(os.getenv("TRANSCRIBE_TIMEOUT_SECONDS", "180"))
+    BEDROCK_TIMEOUT_SECONDS: int = int(os.getenv("BEDROCK_TIMEOUT_SECONDS", "60"))
+    
+    # Retry Configuration
+    MAX_RETRIES: int = int(os.getenv("MAX_RETRIES", "2"))
+    RETRY_DELAY_SECONDS: int = int(os.getenv("RETRY_DELAY_SECONDS", "2"))
+    
+    def validate(self) -> None:
+        """Validate required configuration"""
+        required = {
+            "S3_BUCKET_NAME": self.S3_BUCKET_NAME,
+            "DB_HOST": self.DB_HOST,
+            "DB_PASSWORD": self.DB_PASSWORD,
+            "API_KEY": self.API_KEY
+        }
+        missing = [key for key, value in required.items() if not value]
+        if missing:
+            raise ValueError(f"Missing required config: {', '.join(missing)}")
+    
+    def get_mysql_config(self) -> dict:
+        """Get MySQL connection configuration"""
+        return {
+            "host": self.DB_HOST,
+            "port": self.DB_PORT,
+            "user": self.DB_USER,
+            "password": self.DB_PASSWORD,
+            "database": self.DB_NAME
+        }
 
 
+# ============================================================================
+# LOGGING SETUP
+# ============================================================================
+def setup_logging():
+    """Configure structured JSON logging"""
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format='{"timestamp": "%(asctime)s", "level": "%(levelname)s", "message": "%(message)s"}',
+        handlers=[
+            logging.FileHandler(log_dir / "main_backend.log"),
+            logging.StreamHandler()
+        ]
+    )
+    return logging.getLogger(__name__)
+
+
+# ============================================================================
+# AWS SERVICE CLIENTS
+# ============================================================================
+class AWSServiceClients:
+    """Manages AWS service clients"""
+    
+    def __init__(self, region: str):
+        self.region = region
+        self.bedrock_runtime = boto3.client('bedrock-runtime', region_name=region)
+        self.transcribe = boto3.client('transcribe', region_name=region)
+        self.textract = boto3.client('textract', region_name=region)
+        self.s3 = boto3.client('s3', region_name=region)
+        self.logger = logging.getLogger(__name__)
+    
+    def invoke_claude(self, prompt: str, max_tokens: int = 4096) -> str:
+        """Invoke Claude 3 Sonnet via Bedrock with retry logic and exponential backoff"""
+        retries = 0
+        last_error = None
+        
+        while retries <= config.MAX_RETRIES:
+            try:
+                start_time = time.time()
+                
+                body = json.dumps({
+                    "anthropic_version": "bedrock-2023-05-31",
+                    "max_tokens": max_tokens,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": prompt
+                        }
+                    ]
+                })
+                
+                self.logger.info(f"Invoking Bedrock Claude (attempt {retries + 1}/{config.MAX_RETRIES + 1})")
+                
+                response = self.bedrock_runtime.invoke_model(
+                    modelId=config.BEDROCK_MODEL_ID,
+                    body=body
+                )
+                
+                response_body = json.loads(response['body'].read())
+                result = response_body['content'][0]['text']
+                
+                duration = time.time() - start_time
+                self.logger.info(f"Bedrock invocation successful (duration: {duration:.2f}s)")
+                
+                return result
+            
+            except Exception as e:
+                last_error = e
+                retries += 1
+                
+                # Log with service name, operation, error details, and stack trace
+                error_code = getattr(e, 'response', {}).get('Error', {}).get('Code', 'Unknown') if hasattr(e, 'response') else type(e).__name__
+                error_message = str(e)
+                
+                self.logger.error(
+                    f"AWS service error - Service: bedrock-runtime, Operation: invoke_model, "
+                    f"Error Code: {error_code}, Message: {error_message}, "
+                    f"Attempt: {retries}/{config.MAX_RETRIES + 1}",
+                    exc_info=True
+                )
+                
+                if retries <= config.MAX_RETRIES:
+                    # Exponential backoff: 2^(retries-1) * RETRY_DELAY_SECONDS
+                    delay = (2 ** (retries - 1)) * config.RETRY_DELAY_SECONDS
+                    self.logger.info(f"Retrying in {delay} seconds (exponential backoff)...")
+                    time.sleep(delay)
+                else:
+                    self.logger.error(f"Bedrock invocation failed after {config.MAX_RETRIES + 1} attempts")
+                    raise last_error
+    
+    def transcribe_audio(self, s3_uri: str, language_code: str) -> str:
+        """Transcribe audio file using AWS Transcribe with retry logic and exponential backoff"""
+        job_name = f"transcribe-{uuid.uuid4()}"
+        retries = 0
+        last_error = None
+        
+        # Start transcription job with retry and exponential backoff
+        while retries <= config.MAX_RETRIES:
+            try:
+                self.logger.info(f"Starting Transcribe job: {job_name} (language: {language_code})")
+                
+                self.transcribe.start_transcription_job(
+                    TranscriptionJobName=job_name,
+                    Media={'MediaFileUri': s3_uri},
+                    MediaFormat='mp3',  # Adjust based on file type if needed
+                    LanguageCode=language_code
+                )
+                break
+            
+            except Exception as e:
+                last_error = e
+                retries += 1
+                
+                # Log with service name, operation, error details, and stack trace
+                error_code = getattr(e, 'response', {}).get('Error', {}).get('Code', 'Unknown') if hasattr(e, 'response') else type(e).__name__
+                error_message = str(e)
+                
+                self.logger.error(
+                    f"AWS service error - Service: transcribe, Operation: start_transcription_job, "
+                    f"Error Code: {error_code}, Message: {error_message}, "
+                    f"Attempt: {retries}/{config.MAX_RETRIES + 1}",
+                    exc_info=True
+                )
+                
+                if retries <= config.MAX_RETRIES:
+                    # Exponential backoff: 2^(retries-1) * RETRY_DELAY_SECONDS
+                    delay = (2 ** (retries - 1)) * config.RETRY_DELAY_SECONDS
+                    self.logger.info(f"Retrying in {delay} seconds (exponential backoff)...")
+                    time.sleep(delay)
+                else:
+                    raise last_error
+        
+        # Poll job status
+        start_time = time.time()
+        while True:
+            elapsed = time.time() - start_time
+            
+            if elapsed > config.TRANSCRIBE_TIMEOUT_SECONDS:
+                self.logger.error(f"Transcribe job timeout after {config.TRANSCRIBE_TIMEOUT_SECONDS}s")
+                raise TimeoutError(f"Transcription timeout after {config.TRANSCRIBE_TIMEOUT_SECONDS} seconds")
+            
+            try:
+                response = self.transcribe.get_transcription_job(TranscriptionJobName=job_name)
+                status = response['TranscriptionJob']['TranscriptionJobStatus']
+                
+                self.logger.info(f"Transcribe job status: {status} (elapsed: {elapsed:.1f}s)")
+                
+                if status == 'COMPLETED':
+                    transcript_uri = response['TranscriptionJob']['Transcript']['TranscriptFileUri']
+                    
+                    # Download transcript
+                    import httpx
+                    transcript_response = httpx.get(transcript_uri)
+                    transcript_data = transcript_response.json()
+                    transcript_text = transcript_data['results']['transcripts'][0]['transcript']
+                    
+                    self.logger.info(f"Transcription completed successfully (length: {len(transcript_text)} chars)")
+                    return transcript_text
+                
+                elif status == 'FAILED':
+                    failure_reason = response['TranscriptionJob'].get('FailureReason', 'Unknown')
+                    self.logger.error(
+                        f"AWS service error - Service: transcribe, Operation: get_transcription_job, "
+                        f"Error Code: TranscriptionFailed, Message: {failure_reason}",
+                        exc_info=True
+                    )
+                    raise Exception(f"Transcription failed: {failure_reason}")
+                
+                # Wait before polling again
+                time.sleep(5)
+            
+            except Exception as e:
+                if "FAILED" in str(e) or "failed" in str(e):
+                    raise
+                
+                # Log polling errors with service details
+                error_code = getattr(e, 'response', {}).get('Error', {}).get('Code', 'Unknown') if hasattr(e, 'response') else type(e).__name__
+                self.logger.error(
+                    f"AWS service error - Service: transcribe, Operation: get_transcription_job, "
+                    f"Error Code: {error_code}, Message: {str(e)}",
+                    exc_info=True
+                )
+                time.sleep(5)
+    
+    def extract_text_from_image(self, s3_uri: str) -> str:
+        """Extract text from image using AWS Textract with retry logic and exponential backoff"""
+        retries = 0
+        last_error = None
+        
+        # Parse S3 URI
+        parts = s3_uri.replace("s3://", "").split("/", 1)
+        bucket = parts[0]
+        key = parts[1]
+        
+        while retries <= config.MAX_RETRIES:
+            try:
+                self.logger.info(f"Extracting text from image: {s3_uri} (attempt {retries + 1}/{config.MAX_RETRIES + 1})")
+                
+                response = self.textract.detect_document_text(
+                    Document={
+                        'S3Object': {
+                            'Bucket': bucket,
+                            'Name': key
+                        }
+                    }
+                )
+                
+                # Extract text from blocks
+                text_blocks = []
+                for block in response['Blocks']:
+                    if block['BlockType'] == 'LINE':
+                        text_blocks.append(block['Text'])
+                
+                extracted_text = '\n'.join(text_blocks)
+                
+                if not extracted_text:
+                    self.logger.warning("Textract returned empty text")
+                    raise Exception("No text extracted from image")
+                
+                self.logger.info(f"Text extraction successful (length: {len(extracted_text)} chars)")
+                return extracted_text
+            
+            except Exception as e:
+                last_error = e
+                retries += 1
+                
+                # Log with service name, operation, error details, and stack trace
+                error_code = getattr(e, 'response', {}).get('Error', {}).get('Code', 'Unknown') if hasattr(e, 'response') else type(e).__name__
+                error_message = str(e)
+                
+                self.logger.error(
+                    f"AWS service error - Service: textract, Operation: detect_document_text, "
+                    f"Error Code: {error_code}, Message: {error_message}, "
+                    f"Attempt: {retries}/{config.MAX_RETRIES + 1}",
+                    exc_info=True
+                )
+                
+                if retries <= config.MAX_RETRIES:
+                    # Exponential backoff: 2^(retries-1) * RETRY_DELAY_SECONDS
+                    delay = (2 ** (retries - 1)) * config.RETRY_DELAY_SECONDS
+                    self.logger.info(f"Retrying in {delay} seconds (exponential backoff)...")
+                    time.sleep(delay)
+                else:
+                    raise last_error
+    
+    def upload_to_s3(self, file_bytes: bytes, key: str, bucket: str) -> str:
+        """Upload file to S3 with encryption, retry logic, and exponential backoff"""
+        retries = 0
+        last_error = None
+        
+        while retries <= config.MAX_RETRIES:
+            try:
+                self.logger.info(f"Uploading to S3: s3://{bucket}/{key} (attempt {retries + 1}/{config.MAX_RETRIES + 1})")
+                
+                self.s3.put_object(
+                    Bucket=bucket,
+                    Key=key,
+                    Body=file_bytes,
+                    ServerSideEncryption='AES256'
+                )
+                
+                s3_uri = f"s3://{bucket}/{key}"
+                self.logger.info(f"S3 upload successful: {s3_uri}")
+                return s3_uri
+            
+            except Exception as e:
+                last_error = e
+                retries += 1
+                
+                # Log with service name, operation, error details, and stack trace
+                error_code = getattr(e, 'response', {}).get('Error', {}).get('Code', 'Unknown') if hasattr(e, 'response') else type(e).__name__
+                error_message = str(e)
+                
+                self.logger.error(
+                    f"AWS service error - Service: s3, Operation: put_object, "
+                    f"Error Code: {error_code}, Message: {error_message}, "
+                    f"Bucket: {bucket}, Key: {key}, Attempt: {retries}/{config.MAX_RETRIES + 1}",
+                    exc_info=True
+                )
+                
+                if retries <= config.MAX_RETRIES:
+                    # Exponential backoff: 2^(retries-1) * RETRY_DELAY_SECONDS
+                    delay = (2 ** (retries - 1)) * config.RETRY_DELAY_SECONDS
+                    self.logger.info(f"Retrying in {delay} seconds (exponential backoff)...")
+                    time.sleep(delay)
+                else:
+                    raise last_error
+    
+    def delete_from_s3(self, key: str, bucket: str) -> None:
+        """Delete file from S3 with retry logic and exponential backoff"""
+        retries = 0
+        last_error = None
+        
+        while retries <= config.MAX_RETRIES:
+            try:
+                self.logger.info(f"Deleting from S3: s3://{bucket}/{key}")
+                self.s3.delete_object(Bucket=bucket, Key=key)
+                self.logger.info(f"S3 delete successful: s3://{bucket}/{key}")
+                return
+            
+            except Exception as e:
+                last_error = e
+                retries += 1
+                
+                # Log with service name, operation, error details, and stack trace
+                error_code = getattr(e, 'response', {}).get('Error', {}).get('Code', 'Unknown') if hasattr(e, 'response') else type(e).__name__
+                error_message = str(e)
+                
+                self.logger.error(
+                    f"AWS service error - Service: s3, Operation: delete_object, "
+                    f"Error Code: {error_code}, Message: {error_message}, "
+                    f"Bucket: {bucket}, Key: {key}, Attempt: {retries}/{config.MAX_RETRIES + 1}",
+                    exc_info=True
+                )
+                
+                if retries <= config.MAX_RETRIES:
+                    # Exponential backoff: 2^(retries-1) * RETRY_DELAY_SECONDS
+                    delay = (2 ** (retries - 1)) * config.RETRY_DELAY_SECONDS
+                    self.logger.info(f"Retrying in {delay} seconds (exponential backoff)...")
+                    time.sleep(delay)
+                else:
+                    # Log but don't raise - cleanup failures shouldn't break the workflow
+                    self.logger.error(f"S3 delete failed after {config.MAX_RETRIES + 1} attempts, continuing anyway")
+
+
+# ============================================================================
+# DATABASE MANAGEMENT
+# ============================================================================
+class DatabaseManager:
+    """Manages MySQL RDS and SQLite connections"""
+    
+    def __init__(self, mysql_config: dict):
+        self.logger = logging.getLogger(__name__)
+        
+        # MySQL connection pool
+        self.mysql_pool = mysql.connector.pooling.MySQLConnectionPool(
+            pool_name="afirgen_pool",
+            pool_size=5,
+            **mysql_config
+        )
+        
+        # SQLite for sessions
+        self.sqlite_conn = sqlite3.connect('sessions.db', check_same_thread=False)
+        self.sqlite_lock = threading.Lock()
+        
+        self._initialize_tables()
+    
+    def _initialize_tables(self) -> None:
+            """Create tables if they don't exist"""
+            # MySQL tables
+            fir_records_table = """
+            CREATE TABLE IF NOT EXISTS fir_records (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                fir_number VARCHAR(50) UNIQUE NOT NULL,
+                session_id VARCHAR(100) NOT NULL,
+                complaint_text TEXT NOT NULL,
+                fir_content JSON NOT NULL,
+                violations_json JSON NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'draft',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_fir_number (fir_number),
+                INDEX idx_session_id (session_id),
+                INDEX idx_status (status),
+                INDEX idx_created_at (created_at)
+            );
+            """
+
+            # Updated schema with category and source fields
+            ipc_sections_table = """
+            CREATE TABLE IF NOT EXISTS ipc_sections (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                section_number VARCHAR(20) NOT NULL,
+                title VARCHAR(500) NOT NULL,
+                description TEXT NOT NULL,
+                penalty VARCHAR(500),
+                category VARCHAR(200),
+                source VARCHAR(50),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_section_number (section_number),
+                INDEX idx_category (category),
+                FULLTEXT idx_description (description, title)
+            );
+            """
+
+            try:
+                conn = self.mysql_pool.get_connection()
+                cursor = conn.cursor()
+                cursor.execute(fir_records_table)
+                cursor.execute(ipc_sections_table)
+                conn.commit()
+                cursor.close()
+                conn.close()
+                self.logger.info("MySQL tables initialized")
+            except Exception as e:
+                self.logger.error(f"MySQL table initialization failed: {str(e)}")
+
+            # SQLite sessions table
+            with self.sqlite_lock:
+                cursor = self.sqlite_conn.cursor()
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS sessions (
+                        session_id TEXT PRIMARY KEY,
+                        status TEXT NOT NULL,
+                        transcript TEXT,
+                        summary TEXT,
+                        violations TEXT,
+                        fir_content TEXT,
+                        fir_number TEXT,
+                        error TEXT,
+                        created_at REAL NOT NULL,
+                        updated_at REAL NOT NULL
+                    )
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_created_at ON sessions(created_at)
+                """)
+                self.sqlite_conn.commit()
+                self.logger.info("SQLite tables initialized")
+
+
+    
+    def insert_fir_record(self, fir_data: dict) -> str:
+        """Insert FIR record and return fir_number"""
+        try:
+            conn = self.mysql_pool.get_connection()
+            cursor = conn.cursor()
+            
+            query = """
+            INSERT INTO fir_records 
+            (fir_number, session_id, complaint_text, fir_content, violations_json, status)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """
+            
+            cursor.execute(query, (
+                fir_data['fir_number'],
+                fir_data['session_id'],
+                fir_data['complaint_text'],
+                json.dumps(fir_data['fir_content']),
+                json.dumps(fir_data['violations_json']),
+                fir_data.get('status', 'draft')
+            ))
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            self.logger.info(f"FIR record inserted: {fir_data['fir_number']}")
+            return fir_data['fir_number']
+        
+        except Exception as e:
+            # Log with SQL query and error details
+            self.logger.error(
+                f"Database error - Operation: insert_fir_record, "
+                f"SQL: INSERT INTO fir_records (fir_number, session_id, complaint_text, fir_content, violations_json, status) VALUES (...), "
+                f"Error: {str(e)}",
+                exc_info=True
+            )
+            raise
+    
+    def get_fir_by_number(self, fir_number: str) -> dict:
+        """Retrieve FIR by number"""
+        try:
+            conn = self.mysql_pool.get_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            query = """
+            SELECT fir_number, session_id, complaint_text, fir_content, 
+                   violations_json, status, created_at, updated_at
+            FROM fir_records
+            WHERE fir_number = %s
+            """
+            
+            cursor.execute(query, (fir_number,))
+            result = cursor.fetchone()
+            
+            cursor.close()
+            conn.close()
+            
+            if result:
+                # Parse JSON fields
+                result['fir_content'] = json.loads(result['fir_content'])
+                result['violations_json'] = json.loads(result['violations_json'])
+                # Convert datetime to string
+                result['created_at'] = result['created_at'].isoformat()
+                result['updated_at'] = result['updated_at'].isoformat()
+                
+                self.logger.info(f"FIR retrieved: {fir_number}")
+                return result
+            else:
+                self.logger.warning(f"FIR not found: {fir_number}")
+                return None
+        
+        except Exception as e:
+            # Log with SQL query and error details
+            self.logger.error(
+                f"Database error - Operation: get_fir_by_number, "
+                f"SQL: SELECT * FROM fir_records WHERE fir_number = '{fir_number}', "
+                f"Error: {str(e)}",
+                exc_info=True
+            )
+            raise
+    
+    def list_firs(self, limit: int = 20, offset: int = 0) -> dict:
+        """List FIRs with pagination
+        
+        Returns a dictionary with:
+        - firs: list of FIR records
+        - total: total count of FIRs in database
+        """
+        try:
+            conn = self.mysql_pool.get_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            # Get total count
+            count_query = "SELECT COUNT(*) as total FROM fir_records"
+            cursor.execute(count_query)
+            total = cursor.fetchone()['total']
+            
+            # Get paginated results
+            query = """
+            SELECT fir_number, session_id, complaint_text, fir_content, 
+                   violations_json, status, created_at, updated_at
+            FROM fir_records
+            ORDER BY created_at DESC
+            LIMIT %s OFFSET %s
+            """
+            
+            cursor.execute(query, (limit, offset))
+            results = cursor.fetchall()
+            
+            cursor.close()
+            conn.close()
+            
+            # Parse JSON fields and convert datetime
+            for result in results:
+                result['fir_content'] = json.loads(result['fir_content'])
+                result['violations_json'] = json.loads(result['violations_json'])
+                result['created_at'] = result['created_at'].isoformat()
+                result['updated_at'] = result['updated_at'].isoformat()
+            
+            self.logger.info(f"Listed {len(results)} FIRs out of {total} total (limit: {limit}, offset: {offset})")
+            return {
+                'firs': results,
+                'total': total
+            }
+        
+        except Exception as e:
+            # Log with SQL query and error details
+            self.logger.error(
+                f"Database error - Operation: list_firs, "
+                f"SQL: SELECT * FROM fir_records ORDER BY created_at DESC LIMIT {limit} OFFSET {offset}, "
+                f"Error: {str(e)}",
+                exc_info=True
+            )
+            raise
+    
+    def update_fir_status(self, fir_number: str, status: str) -> None:
+        """Update FIR status to 'finalized' or other status"""
+        try:
+            conn = self.mysql_pool.get_connection()
+            cursor = conn.cursor()
+            
+            query = """
+            UPDATE fir_records
+            SET status = %s
+            WHERE fir_number = %s
+            """
+            
+            cursor.execute(query, (status, fir_number))
+            conn.commit()
+            
+            cursor.close()
+            conn.close()
+            
+            self.logger.info(f"FIR status updated: {fir_number} -> {status}")
+        
+        except Exception as e:
+            # Log with SQL query and error details
+            self.logger.error(
+                f"Database error - Operation: update_fir_status, "
+                f"SQL: UPDATE fir_records SET status = '{status}' WHERE fir_number = '{fir_number}', "
+                f"Error: {str(e)}",
+                exc_info=True
+            )
+            raise
+    
+    def get_ipc_sections(self, keywords: list = None) -> list:
+        """Retrieve IPC sections using SQL LIKE queries"""
+        try:
+            conn = self.mysql_pool.get_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            if keywords and len(keywords) > 0:
+                # Build LIKE query for keyword matching
+                conditions = []
+                params = []
+                
+                for keyword in keywords[:5]:  # Limit to 5 keywords
+                    keyword_pattern = f"%{keyword}%"
+                    conditions.append("(description LIKE %s OR title LIKE %s)")
+                    params.extend([keyword_pattern, keyword_pattern])
+                
+                query = f"""
+                SELECT section_number, title, description, penalty, category, source
+                FROM ipc_sections
+                WHERE {' OR '.join(conditions)}
+                LIMIT 10
+                """
+                
+                cursor.execute(query, params)
+            else:
+                # Return all sections if no keywords
+                query = """
+                SELECT section_number, title, description, penalty, category, source
+                FROM ipc_sections
+                LIMIT 10
+                """
+                cursor.execute(query)
+            
+            results = cursor.fetchall()
+            
+            cursor.close()
+            conn.close()
+            
+            self.logger.info(f"Retrieved {len(results)} IPC sections")
+            return results
+        
+        except Exception as e:
+            # Log with SQL query and error details
+            self.logger.error(
+                f"Database error - Operation: get_ipc_sections, "
+                f"SQL: SELECT * FROM ipc_sections WHERE description LIKE '%...%' OR title LIKE '%...%', "
+                f"Error: {str(e)}",
+                exc_info=True
+            )
+            # Return empty list on error to allow workflow to continue
+            return []
+    
+    def load_ipc_sections(self, json_file_path: str) -> None:
+        """Load IPC sections from JSON file on first startup"""
+        try:
+            conn = self.mysql_pool.get_connection()
+            cursor = conn.cursor()
+            
+            # Check if table already has data
+            cursor.execute("SELECT COUNT(*) FROM ipc_sections")
+            count = cursor.fetchone()[0]
+            
+            if count > 0:
+                self.logger.info(f"IPC sections already loaded: {count} sections")
+                cursor.close()
+                conn.close()
+                return
+            
+            # Load from JSON file
+            if not os.path.exists(json_file_path):
+                self.logger.warning(f"IPC sections JSON file not found: {json_file_path}")
+                cursor.close()
+                conn.close()
+                return
+            
+            with open(json_file_path, 'r', encoding='utf-8') as f:
+                sections = json.load(f)
+            
+            # Insert sections with new fields (category, source)
+            query = """
+            INSERT INTO ipc_sections (section_number, title, description, penalty, category, source)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """
+            
+            for section in sections:
+                cursor.execute(query, (
+                    section.get('section_number', ''),
+                    section.get('title', ''),
+                    section.get('description', ''),
+                    section.get('penalty', ''),
+                    section.get('category', ''),
+                    section.get('source', '')
+                ))
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            self.logger.info(f"Loaded {len(sections)} IPC sections from {json_file_path}")
+        
+        except Exception as e:
+            self.logger.error(f"Failed to load IPC sections: {str(e)}")
+            # Don't raise - this is optional initialization
+    
+    def create_session(self, session_id: str) -> None:
+        """Create new session"""
+        try:
+            with self.sqlite_lock:
+                cursor = self.sqlite_conn.cursor()
+                now = time.time()
+                
+                cursor.execute("""
+                    INSERT INTO sessions 
+                    (session_id, status, created_at, updated_at)
+                    VALUES (?, ?, ?, ?)
+                """, (session_id, "processing", now, now))
+                
+                self.sqlite_conn.commit()
+                self.logger.info(f"Session created: {session_id}")
+        
+        except Exception as e:
+            # Log with SQL query and error details
+            self.logger.error(
+                f"Database error - Operation: create_session, "
+                f"SQL: INSERT INTO sessions (session_id, status, created_at, updated_at) VALUES ('{session_id}', 'processing', ...), "
+                f"Error: {str(e)}",
+                exc_info=True
+            )
+            raise
+    
+    def update_session(self, session_id: str, data: dict) -> None:
+        """Update session data"""
+        try:
+            with self.sqlite_lock:
+                cursor = self.sqlite_conn.cursor()
+                now = time.time()
+                
+                # Build update query dynamically based on provided data
+                update_fields = []
+                params = []
+                
+                for key, value in data.items():
+                    if key in ['status', 'transcript', 'summary', 'violations', 
+                              'fir_content', 'fir_number', 'error']:
+                        update_fields.append(f"{key} = ?")
+                        # Convert dict/list to JSON string
+                        if isinstance(value, (dict, list)):
+                            params.append(json.dumps(value))
+                        else:
+                            params.append(value)
+                
+                if not update_fields:
+                    self.logger.warning(f"No valid fields to update for session: {session_id}")
+                    return
+                
+                # Always update updated_at
+                update_fields.append("updated_at = ?")
+                params.append(now)
+                params.append(session_id)
+                
+                query = f"""
+                    UPDATE sessions
+                    SET {', '.join(update_fields)}
+                    WHERE session_id = ?
+                """
+                
+                cursor.execute(query, params)
+                self.sqlite_conn.commit()
+                
+                self.logger.info(f"Session updated: {session_id}")
+        
+        except Exception as e:
+            # Log with SQL query and error details
+            self.logger.error(
+                f"Database error - Operation: update_session, "
+                f"SQL: UPDATE sessions SET {', '.join([f'{k}=?' for k in data.keys()])} WHERE session_id = '{session_id}', "
+                f"Error: {str(e)}",
+                exc_info=True
+            )
+            raise
+    
+    def get_session(self, session_id: str) -> dict:
+        """Retrieve session data"""
+        try:
+            with self.sqlite_lock:
+                cursor = self.sqlite_conn.cursor()
+                cursor.row_factory = sqlite3.Row
+                
+                cursor.execute("""
+                    SELECT session_id, status, transcript, summary, violations,
+                           fir_content, fir_number, error, created_at, updated_at
+                    FROM sessions
+                    WHERE session_id = ?
+                """, (session_id,))
+                
+                row = cursor.fetchone()
+                
+                if row:
+                    result = dict(row)
+                    
+                    # Parse JSON fields
+                    if result.get('violations'):
+                        try:
+                            result['violations'] = json.loads(result['violations'])
+                        except:
+                            pass
+                    
+                    if result.get('fir_content'):
+                        try:
+                            result['fir_content'] = json.loads(result['fir_content'])
+                        except:
+                            pass
+                    
+                    self.logger.info(f"Session retrieved: {session_id}")
+                    return result
+                else:
+                    self.logger.warning(f"Session not found: {session_id}")
+                    return None
+        
+        except Exception as e:
+            # Log with SQL query and error details
+            self.logger.error(
+                f"Database error - Operation: get_session, "
+                f"SQL: SELECT * FROM sessions WHERE session_id = '{session_id}', "
+                f"Error: {str(e)}",
+                exc_info=True
+            )
+            raise
+    
+    def cleanup_old_sessions(self) -> None:
+        """Delete sessions older than 24 hours"""
+        try:
+            with self.sqlite_lock:
+                cursor = self.sqlite_conn.cursor()
+                cutoff_time = time.time() - (24 * 60 * 60)  # 24 hours ago
+                
+                cursor.execute("""
+                    DELETE FROM sessions
+                    WHERE created_at < ?
+                """, (cutoff_time,))
+                
+                deleted_count = cursor.rowcount
+                self.sqlite_conn.commit()
+                
+                if deleted_count > 0:
+                    self.logger.info(f"Cleaned up {deleted_count} old sessions")
+        
+        except Exception as e:
+            self.logger.error(f"Failed to cleanup old sessions: {str(e)}")
+            # Don't raise - cleanup failures shouldn't break the application
+
+
+# ============================================================================
+# FIR GENERATOR
+# ============================================================================
+class FIRGenerator:
+    """Orchestrates FIR generation workflow"""
+    
+    def __init__(self, aws_clients: AWSServiceClients, db: DatabaseManager):
+        """Initialize FIR generator with dependencies"""
+        self.aws = aws_clients
+        self.db = db
+        self.logger = logging.getLogger(__name__)
+        
+        # All 30 required FIR fields
+        self.required_fields = [
+            "complainant_name",
+            "complainant_dob",
+            "complainant_nationality",
+            "complainant_father_husband_name",
+            "complainant_address",
+            "complainant_contact",
+            "complainant_passport",
+            "complainant_occupation",
+            "incident_date_from",
+            "incident_date_to",
+            "incident_time_from",
+            "incident_time_to",
+            "incident_location",
+            "incident_address",
+            "incident_description",
+            "delayed_reporting_reasons",
+            "incident_summary",
+            "legal_acts",
+            "legal_sections",
+            "suspect_details",
+            "investigating_officer_name",
+            "investigating_officer_rank",
+            "witnesses",
+            "action_taken",
+            "investigation_status",
+            "date_of_despatch",
+            "investigating_officer_signature",
+            "investigating_officer_date",
+            "complainant_signature",
+            "complainant_date"
+        ]
+    
+    def generate_from_text(self, text: str, session_id: str) -> dict:
+        """Generate FIR from complaint text"""
+        try:
+            self.logger.info(f"Starting FIR generation from text for session {session_id}")
+            
+            # Stage 1: Generate formal narrative
+            self.db.update_session(session_id, {"status": "generating_narrative"})
+            narrative = self._generate_formal_narrative(text)
+            self.db.update_session(session_id, {"summary": narrative})
+            
+            # Stage 2: Extract metadata
+            self.db.update_session(session_id, {"status": "extracting_metadata"})
+            metadata = self._extract_metadata(narrative)
+            
+            # Stage 3: Retrieve IPC sections
+            self.db.update_session(session_id, {"status": "retrieving_ipc_sections"})
+            ipc_sections = self._retrieve_ipc_sections(metadata)
+            
+            # Stage 4: Generate complete FIR
+            self.db.update_session(session_id, {"status": "generating_fir"})
+            fir_data = self._generate_complete_fir(narrative, metadata, ipc_sections)
+            
+            # Stage 5: Validate FIR fields
+            if not self._validate_fir_fields(fir_data):
+                raise ValueError("Generated FIR is missing required fields")
+            
+            # Generate FIR number
+            fir_number = self._generate_fir_number()
+            
+            # Store FIR in database
+            self.db.insert_fir_record({
+                "fir_number": fir_number,
+                "session_id": session_id,
+                "complaint_text": text,
+                "fir_content": fir_data,
+                "violations_json": ipc_sections,
+                "status": "draft"
+            })
+            
+            # Update session with complete data
+            self.db.update_session(session_id, {
+                "status": "completed",
+                "fir_content": json.dumps(fir_data),
+                "violations": json.dumps(ipc_sections),
+                "fir_number": fir_number
+            })
+            
+            self.logger.info(f"FIR generation completed for session {session_id}, FIR number: {fir_number}")
+            
+            return {
+                "fir_number": fir_number,
+                "fir_content": fir_data,
+                "violations": ipc_sections
+            }
+            
+        except Exception as e:
+            self.logger.error(f"FIR generation failed for session {session_id}: {str(e)}")
+            self.db.update_session(session_id, {
+                "status": "failed",
+                "error": str(e)
+            })
+            raise
+    
+    def generate_from_audio(self, audio_bytes: bytes, language: str, session_id: str) -> dict:
+        """Generate FIR from audio file"""
+        audio_key = None
+        try:
+            self.logger.info(f"Starting FIR generation from audio for session {session_id}")
+            
+            # Upload audio to S3
+            audio_key = f"audio/{uuid.uuid4()}.mp3"
+            s3_uri = self.aws.upload_to_s3(audio_bytes, audio_key, os.getenv("S3_BUCKET_NAME"))
+            
+            # Transcribe audio
+            self.db.update_session(session_id, {"status": "transcribing"})
+            transcript = self.aws.transcribe_audio(s3_uri, language)
+            
+            # Delete audio from S3
+            self.aws.delete_from_s3(audio_key, os.getenv("S3_BUCKET_NAME"))
+            
+            # Update session with transcript
+            self.db.update_session(session_id, {"transcript": transcript})
+            
+            # Continue with text workflow
+            return self.generate_from_text(transcript, session_id)
+            
+        except Exception as e:
+            self.logger.error(f"Audio FIR generation failed for session {session_id}: {str(e)}")
+            # Clean up S3 file even on failure
+            if audio_key:
+                try:
+                    self.aws.delete_from_s3(audio_key, os.getenv("S3_BUCKET_NAME"))
+                    self.logger.info(f"Cleaned up S3 file {audio_key} after failure")
+                except Exception as cleanup_error:
+                    self.logger.warning(f"Failed to clean up S3 file {audio_key}: {str(cleanup_error)}")
+            
+            # Mark session as failed and store error message
+            self.db.update_session(session_id, {
+                "status": "failed",
+                "error": str(e)
+            })
+            raise
+    
+    def generate_from_image(self, image_bytes: bytes, session_id: str) -> dict:
+        """Generate FIR from image file"""
+        image_key = None
+        try:
+            self.logger.info(f"Starting FIR generation from image for session {session_id}")
+            
+            # Upload image to S3
+            image_key = f"images/{uuid.uuid4()}.jpg"
+            s3_uri = self.aws.upload_to_s3(image_bytes, image_key, os.getenv("S3_BUCKET_NAME"))
+            
+            # Extract text from image
+            self.db.update_session(session_id, {"status": "extracting_text"})
+            extracted_text = self.aws.extract_text_from_image(s3_uri)
+            
+            # Delete image from S3
+            self.aws.delete_from_s3(image_key, os.getenv("S3_BUCKET_NAME"))
+            
+            # Update session with extracted text
+            self.db.update_session(session_id, {"transcript": extracted_text})
+            
+            # Continue with text workflow
+            return self.generate_from_text(extracted_text, session_id)
+            
+        except Exception as e:
+            self.logger.error(f"Image FIR generation failed for session {session_id}: {str(e)}")
+            # Clean up S3 file even on failure
+            if image_key:
+                try:
+                    self.aws.delete_from_s3(image_key, os.getenv("S3_BUCKET_NAME"))
+                    self.logger.info(f"Cleaned up S3 file {image_key} after failure")
+                except Exception as cleanup_error:
+                    self.logger.warning(f"Failed to clean up S3 file {image_key}: {str(cleanup_error)}")
+            
+            # Mark session as failed and store error message
+            self.db.update_session(session_id, {
+                "status": "failed",
+                "error": str(e)
+            })
+            raise
+    
+    def _generate_formal_narrative(self, complaint_text: str) -> str:
+        """Stage 1: Generate formal narrative using Claude"""
+        prompt = f"""You are a police officer writing a formal First Information Report (FIR) narrative.
+
+Convert the following complaint into a formal, professional narrative suitable for an official police report:
+
+{complaint_text}
+
+Requirements:
+- Use formal, objective language
+- Include all relevant details
+- Maintain chronological order
+- Use third-person perspective
+- Be concise but complete
+
+Generate only the formal narrative, no additional commentary."""
+        
+        narrative = self.aws.invoke_claude(prompt, max_tokens=4096)
+        self.logger.info("Formal narrative generated successfully")
+        return narrative
+    
+    def _extract_metadata(self, narrative: str) -> dict:
+        """Stage 2: Extract metadata using Claude"""
+        prompt = f"""Extract structured metadata from this FIR narrative.
+
+Narrative:
+{narrative}
+
+Extract the following information in JSON format:
+{{
+  "complainant_name": "string",
+  "incident_date": "string",
+  "incident_time": "string",
+  "incident_location": "string",
+  "incident_type": "string",
+  "keywords": ["string"]
+}}
+
+Return only valid JSON, no additional text."""
+        
+        try:
+            response = self.aws.invoke_claude(prompt, max_tokens=2048)
+            
+            # Parse JSON response
+            metadata = json.loads(response)
+            self.logger.info("Metadata extracted successfully")
+            return metadata
+            
+        except json.JSONDecodeError as e:
+            self.logger.warning(f"Failed to parse metadata JSON: {str(e)}. Using basic defaults.")
+            # Use basic defaults if metadata extraction fails
+            return {
+                "complainant_name": "Unknown",
+                "incident_date": "Unknown",
+                "incident_time": "Unknown",
+                "incident_location": "Unknown",
+                "incident_type": "Unknown",
+                "keywords": []
+            }
+        except Exception as e:
+            self.logger.warning(f"Metadata extraction failed: {str(e)}. Using basic defaults.")
+            # Use basic defaults if metadata extraction fails
+            return {
+                "complainant_name": "Unknown",
+                "incident_date": "Unknown",
+                "incident_time": "Unknown",
+                "incident_location": "Unknown",
+                "incident_type": "Unknown",
+                "keywords": []
+            }
+    
+    def _retrieve_ipc_sections(self, metadata: dict) -> list:
+        """Stage 3: Retrieve relevant IPC sections from MySQL"""
+        try:
+            keywords = metadata.get("keywords", [])
+            if metadata.get("incident_type"):
+                keywords.append(metadata["incident_type"])
+            
+            ipc_sections = self.db.get_ipc_sections(keywords)
+            self.logger.info(f"Retrieved {len(ipc_sections)} IPC sections")
+            return ipc_sections
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to retrieve IPC sections: {str(e)}. Continuing with empty IPC sections.")
+            # Return empty list on failure - workflow can continue
+            return []
+    
+    def _generate_complete_fir(self, narrative: str, metadata: dict, ipc_sections: list) -> dict:
+        """Stage 4: Generate complete FIR with all 30 fields using Claude"""
+        
+        # Format IPC sections for prompt
+        if ipc_sections:
+            ipc_sections_text = "\n".join([
+                f"Section {s['section_number']}: {s['title']}\n{s['description']}\nPenalty: {s.get('penalty', 'N/A')}"
+                for s in ipc_sections[:10]  # Limit to top 10 sections
+            ])
+        else:
+            ipc_sections_text = "No specific IPC sections retrieved. Use general applicable sections based on the incident."
+            self.logger.info("Generating FIR with empty IPC sections - will use general sections")
+        
+        prompt = f"""Generate a complete First Information Report (FIR) with all required fields.
+
+Formal Narrative:
+{narrative}
+
+Metadata:
+{json.dumps(metadata, indent=2)}
+
+Relevant IPC Sections:
+{ipc_sections_text}
+
+Generate a complete FIR in JSON format with ALL of the following 30 fields:
+
+{{
+  "complainant_name": "Full name of complainant",
+  "complainant_dob": "Date of birth (DD/MM/YYYY)",
+  "complainant_nationality": "Nationality",
+  "complainant_father_husband_name": "Father's or husband's name",
+  "complainant_address": "Complete address",
+  "complainant_contact": "Contact number",
+  "complainant_passport": "Passport number (if applicable, else 'N/A')",
+  "complainant_occupation": "Occupation",
+  "incident_date_from": "Incident start date (DD/MM/YYYY)",
+  "incident_date_to": "Incident end date (DD/MM/YYYY)",
+  "incident_time_from": "Incident start time (HH:MM)",
+  "incident_time_to": "Incident end time (HH:MM)",
+  "incident_location": "Location name",
+  "incident_address": "Complete incident address",
+  "incident_description": "Detailed description",
+  "delayed_reporting_reasons": "Reasons for delay (if any, else 'N/A')",
+  "incident_summary": "Brief summary",
+  "legal_acts": "Applicable legal acts",
+  "legal_sections": "Applicable IPC sections",
+  "suspect_details": "Suspect information (if known, else 'Unknown')",
+  "investigating_officer_name": "Officer name (leave blank for now)",
+  "investigating_officer_rank": "Officer rank (leave blank for now)",
+  "witnesses": "Witness information (if any, else 'None')",
+  "action_taken": "Initial action taken",
+  "investigation_status": "Current status",
+  "date_of_despatch": "Date of despatch (DD/MM/YYYY)",
+  "investigating_officer_signature": "Placeholder for signature",
+  "investigating_officer_date": "Date (DD/MM/YYYY)",
+  "complainant_signature": "Placeholder for signature",
+  "complainant_date": "Date (DD/MM/YYYY)"
+}}
+
+IMPORTANT: 
+- All fields must be present
+- Use "N/A" or "Unknown" for unavailable information
+- Use "None" for empty lists
+- Extract information from the narrative
+- Use the provided IPC sections for legal_sections field
+- Return only valid JSON
+
+Return the complete JSON object."""
+        
+        response = self.aws.invoke_claude(prompt, max_tokens=8192)
+        
+        # Parse JSON response
+        try:
+            fir_data = json.loads(response)
+            self.logger.info("Complete FIR generated successfully")
+            return fir_data
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Failed to parse FIR JSON: {str(e)}")
+            raise ValueError(f"Failed to generate valid FIR: {str(e)}")
+    
+    def _validate_fir_fields(self, fir_data: dict) -> bool:
+        """Validate that all 30 required fields are present"""
+        missing_fields = []
+        
+        for field in self.required_fields:
+            if field not in fir_data:
+                missing_fields.append(field)
+            elif not fir_data[field] or fir_data[field].strip() == "":
+                missing_fields.append(f"{field} (empty)")
+        
+        if missing_fields:
+            self.logger.error(f"FIR validation failed. Missing or empty fields: {', '.join(missing_fields)}")
+            return False
+        
+        self.logger.info("FIR validation passed - all 30 fields present")
+        return True
+    
+    def _generate_fir_number(self) -> str:
+        """Generate unique FIR number with format: FIR-YYYYMMDD-XXXXX"""
+        date_str = datetime.now().strftime("%Y%m%d")
+        
+        # Get count of FIRs created today to generate sequence number
+        try:
+            conn = self.db.mysql_pool.get_connection()
+            cursor = conn.cursor()
+            
+            query = """
+            SELECT COUNT(*) FROM fir_records 
+            WHERE fir_number LIKE %s
+            """
+            cursor.execute(query, (f"FIR-{date_str}-%",))
+            count = cursor.fetchone()[0]
+            
+            cursor.close()
+            conn.close()
+            
+            # Generate sequence number (5 digits, zero-padded)
+            sequence = str(count + 1).zfill(5)
+            fir_number = f"FIR-{date_str}-{sequence}"
+            
+            return fir_number
+            
+        except Exception as e:
+            self.logger.error(f"Failed to generate FIR number: {str(e)}")
+            # Fallback to UUID-based number
+            return f"FIR-{date_str}-{str(uuid.uuid4())[:5].upper()}"
+
+
+# ============================================================================
+# PDF GENERATOR
+# ============================================================================
+class PDFGenerator:
+    """Generates FIR PDF documents with all 30 required fields"""
+    
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+    
+    def generate_fir_pdf(self, fir_data: dict) -> bytes:
+        """
+        Generate PDF from FIR data with all 30 fields
+        
+        Args:
+            fir_data: Dictionary containing all 30 FIR template fields
+            
+        Returns:
+            PDF document as bytes
+        """
+        from io import BytesIO
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.units import inch
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.lib import colors
+        
+        try:
+            # Create PDF buffer
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4, 
+                                   rightMargin=0.5*inch, leftMargin=0.5*inch,
+                                   topMargin=0.5*inch, bottomMargin=0.5*inch)
+            
+            # Container for PDF elements
+            elements = []
+            styles = getSampleStyleSheet()
+            
+            # Custom styles
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                fontSize=16,
+                textColor=colors.HexColor('#1a1a1a'),
+                spaceAfter=12,
+                alignment=1  # Center
+            )
+            
+            heading_style = ParagraphStyle(
+                'CustomHeading',
+                parent=styles['Heading2'],
+                fontSize=12,
+                textColor=colors.HexColor('#2c3e50'),
+                spaceAfter=6,
+                spaceBefore=12
+            )
+            
+            # Header Section
+            self._add_header(elements, fir_data, title_style)
+            elements.append(Spacer(1, 0.2*inch))
+            
+            # Complainant Section (8 fields)
+            self._add_complainant_section(elements, fir_data, heading_style, styles)
+            elements.append(Spacer(1, 0.15*inch))
+            
+            # Incident Section (10 fields)
+            self._add_incident_section(elements, fir_data, heading_style, styles)
+            elements.append(Spacer(1, 0.15*inch))
+            
+            # Legal Section (3 fields)
+            self._add_legal_section(elements, fir_data, heading_style, styles)
+            elements.append(Spacer(1, 0.15*inch))
+            
+            # Investigation Section (6 fields)
+            self._add_investigation_section(elements, fir_data, heading_style, styles)
+            elements.append(Spacer(1, 0.15*inch))
+            
+            # Signatures Section (4 fields)
+            self._add_signature_section(elements, fir_data, heading_style, styles)
+            
+            # Build PDF
+            doc.build(elements)
+            
+            # Get PDF bytes
+            pdf_bytes = buffer.getvalue()
+            buffer.close()
+            
+            self.logger.info(f"Generated PDF with {len(pdf_bytes)} bytes")
+            return pdf_bytes
+            
+        except Exception as e:
+            self.logger.error(f"Failed to generate PDF: {str(e)}")
+            raise
+    
+    def _add_header(self, elements, fir_data, title_style):
+        """Add PDF header with FIR number"""
+        from reportlab.platypus import Paragraph
+        
+        fir_number = fir_data.get('fir_number', 'N/A')
+        title = Paragraph(f"<b>FIRST INFORMATION REPORT</b><br/>FIR No: {fir_number}", title_style)
+        elements.append(title)
+    
+    def _add_complainant_section(self, elements, fir_data, heading_style, styles):
+        """Add complainant details section (8 fields)"""
+        from reportlab.platypus import Paragraph, Table, TableStyle
+        from reportlab.lib import colors
+        
+        elements.append(Paragraph("<b>COMPLAINANT DETAILS</b>", heading_style))
+        
+        # Complainant fields
+        complainant_data = [
+            ["Name:", fir_data.get('complainant_name', 'N/A')],
+            ["Date of Birth:", fir_data.get('complainant_dob', 'N/A')],
+            ["Nationality:", fir_data.get('complainant_nationality', 'N/A')],
+            ["Father/Husband Name:", fir_data.get('complainant_father_husband_name', 'N/A')],
+            ["Address:", fir_data.get('complainant_address', 'N/A')],
+            ["Contact Number:", fir_data.get('complainant_contact', 'N/A')],
+            ["Passport Number:", fir_data.get('complainant_passport', 'N/A')],
+            ["Occupation:", fir_data.get('complainant_occupation', 'N/A')]
+        ]
+        
+        table = Table(complainant_data, colWidths=[2*inch, 5*inch])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#ecf0f1')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        elements.append(table)
+    
+    def _add_incident_section(self, elements, fir_data, heading_style, styles):
+        """Add incident details section (10 fields)"""
+        from reportlab.platypus import Paragraph, Table, TableStyle
+        from reportlab.lib import colors
+        
+        elements.append(Paragraph("<b>INCIDENT DETAILS</b>", heading_style))
+        
+        # Incident fields
+        incident_data = [
+            ["Date From:", fir_data.get('incident_date_from', 'N/A')],
+            ["Date To:", fir_data.get('incident_date_to', 'N/A')],
+            ["Time From:", fir_data.get('incident_time_from', 'N/A')],
+            ["Time To:", fir_data.get('incident_time_to', 'N/A')],
+            ["Location:", fir_data.get('incident_location', 'N/A')],
+            ["Address:", fir_data.get('incident_address', 'N/A')],
+            ["Description:", fir_data.get('incident_description', 'N/A')],
+            ["Delayed Reporting Reasons:", fir_data.get('delayed_reporting_reasons', 'N/A')],
+            ["Summary:", fir_data.get('incident_summary', 'N/A')],
+            ["Suspect Details:", fir_data.get('suspect_details', 'N/A')]
+        ]
+        
+        table = Table(incident_data, colWidths=[2*inch, 5*inch])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#ecf0f1')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        elements.append(table)
+    
+    def _add_legal_section(self, elements, fir_data, heading_style, styles):
+        """Add legal provisions section (3 fields)"""
+        from reportlab.platypus import Paragraph, Table, TableStyle
+        from reportlab.lib import colors
+        
+        elements.append(Paragraph("<b>LEGAL PROVISIONS</b>", heading_style))
+        
+        # Legal fields
+        legal_data = [
+            ["Acts:", fir_data.get('legal_acts', 'N/A')],
+            ["Sections:", fir_data.get('legal_sections', 'N/A')],
+            ["Suspect Details:", fir_data.get('suspect_details', 'N/A')]
+        ]
+        
+        table = Table(legal_data, colWidths=[2*inch, 5*inch])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#ecf0f1')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        elements.append(table)
+    
+    def _add_investigation_section(self, elements, fir_data, heading_style, styles):
+        """Add investigation details section (6 fields)"""
+        from reportlab.platypus import Paragraph, Table, TableStyle
+        from reportlab.lib import colors
+        
+        elements.append(Paragraph("<b>INVESTIGATION DETAILS</b>", heading_style))
+        
+        # Investigation fields
+        investigation_data = [
+            ["Investigating Officer Name:", fir_data.get('investigating_officer_name', 'N/A')],
+            ["Investigating Officer Rank:", fir_data.get('investigating_officer_rank', 'N/A')],
+            ["Witnesses:", fir_data.get('witnesses', 'N/A')],
+            ["Action Taken:", fir_data.get('action_taken', 'N/A')],
+            ["Investigation Status:", fir_data.get('investigation_status', 'N/A')],
+            ["Date of Despatch:", fir_data.get('date_of_despatch', 'N/A')]
+        ]
+        
+        table = Table(investigation_data, colWidths=[2*inch, 5*inch])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#ecf0f1')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        elements.append(table)
+    
+    def _add_signature_section(self, elements, fir_data, heading_style, styles):
+        """Add signature fields section (4 fields)"""
+        from reportlab.platypus import Paragraph, Table, TableStyle, Spacer
+        from reportlab.lib import colors
+        
+        elements.append(Paragraph("<b>SIGNATURES</b>", heading_style))
+        elements.append(Spacer(1, 0.1*inch))
+        
+        # Signature fields in two columns
+        signature_data = [
+            ["Investigating Officer Signature:", fir_data.get('investigating_officer_signature', '_' * 30)],
+            ["Date:", fir_data.get('investigating_officer_date', 'N/A')],
+            ["", ""],  # Spacer row
+            ["Complainant Signature:", fir_data.get('complainant_signature', '_' * 30)],
+            ["Date:", fir_data.get('complainant_date', 'N/A')]
+        ]
+        
+        table = Table(signature_data, colWidths=[2*inch, 5*inch])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#ecf0f1')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        elements.append(table)
+
+
+# ============================================================================
+# API MODELS
+# ============================================================================
+class ProcessRequest(BaseModel):
+    """Request model for /process endpoint"""
+    input_type: Literal["text", "audio", "image"]
+    text: Optional[str] = None
+    language: Optional[str] = "en-IN"  # For audio: "en-IN" or "hi-IN"
+
+
+class ProcessResponse(BaseModel):
+    """Response model for /process endpoint"""
+    session_id: str
+    status: str
+    message: str
+
+
+class SessionResponse(BaseModel):
+    """Response model for /session endpoint"""
+    session_id: str
+    status: str
+    transcript: Optional[str] = None
+    summary: Optional[str] = None
+    violations: Optional[list] = None
+    fir_content: Optional[dict] = None
+    fir_number: Optional[str] = None
+    error: Optional[str] = None
+
+
+class HealthResponse(BaseModel):
+    """Response model for /health endpoint"""
+    status: str
+    checks: dict
+    timestamp: str
+
+
+class AuthenticateRequest(BaseModel):
+    """Request model for /authenticate endpoint"""
+    session_id: str
+    complainant_signature: str
+    officer_signature: str
+
+
+class AuthenticateResponse(BaseModel):
+    """Response model for /authenticate endpoint"""
+    fir_number: str
+    pdf_url: str
+    status: str
+
+
+class FIRResponse(BaseModel):
+    """Response model for /fir/{fir_number} endpoint"""
+    fir_number: str
+    session_id: str
+    complaint_text: str
+    fir_content: dict
+    violations_json: list
+    status: str
+    created_at: str
+
+
+class FIRListResponse(BaseModel):
+    """Response model for /firs endpoint with pagination"""
+    firs: List[FIRResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class ErrorResponse(BaseModel):
+    """Standardized error response model
+    
+    Requirements: 14.1-14.8
+    """
+    error: str
+    detail: str
+    status_code: int
+
+
+# ============================================================================
+# RATE LIMITING
+# ============================================================================
+
+
+
+# ============================================================================
+# RATE LIMITING
+# ============================================================================
+class RateLimiter:
+    """In-memory rate limiter"""
+    
+    def __init__(self, requests_per_minute: int = 100):
+        self.requests_per_minute = requests_per_minute
+        self.requests: Dict[str, List[float]] = {}
+        self.lock = threading.Lock()
+    
+    def is_allowed(self, ip_address: str) -> bool:
+        """Check if request is allowed"""
+        with self.lock:
+            now = time.time()
+            
+            # Initialize or clean up old requests
+            if ip_address not in self.requests:
+                self.requests[ip_address] = []
+            
+            # Remove requests older than 1 minute
+            self.requests[ip_address] = [
+                req_time for req_time in self.requests[ip_address]
+                if now - req_time < 60
+            ]
+            
+            # Check if limit exceeded
+            if len(self.requests[ip_address]) >= self.requests_per_minute:
+                return False
+            
+            # Add current request
+            self.requests[ip_address].append(now)
+            return True
+
+
+# ============================================================================
+# FILE VALIDATION
+# ============================================================================
+
+def validate_audio_file(file_bytes: bytes, filename: str) -> None:
+    """Validate audio file extension and content
+    
+    Requirements: 23.1, 23.4, 23.5
+    
+    Args:
+        file_bytes: File content as bytes
+        filename: Original filename
+        
+    Raises:
+        HTTPException: If validation fails
+    """
+    # Validate file extension
+    allowed_extensions = {".wav", ".mp3", ".mpeg"}
+    file_ext = os.path.splitext(filename)[1].lower()
+    if file_ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid audio file extension. Allowed: {', '.join(allowed_extensions)}"
+        )
+    
+    # Validate file content matches extension
+    # Check magic bytes for common audio formats
+    if len(file_bytes) < 12:
+        raise HTTPException(
+            status_code=400,
+            detail="File is too small to be a valid audio file"
+        )
+    
+    # WAV files start with "RIFF" and contain "WAVE"
+    if file_ext == ".wav":
+        if not (file_bytes[:4] == b'RIFF' and file_bytes[8:12] == b'WAVE'):
+            raise HTTPException(
+                status_code=400,
+                detail="File content does not match WAV format"
+            )
+    
+    # MP3 files start with ID3 tag or MPEG frame sync
+    elif file_ext == ".mp3":
+        # ID3v2 tag starts with "ID3"
+        # MPEG frame sync starts with 0xFF 0xFB or 0xFF 0xFA or 0xFF 0xF3 or 0xFF 0xF2
+        has_id3 = file_bytes[:3] == b'ID3'
+        has_mpeg_sync = file_bytes[0] == 0xFF and (file_bytes[1] & 0xE0) == 0xE0
+        if not (has_id3 or has_mpeg_sync):
+            raise HTTPException(
+                status_code=400,
+                detail="File content does not match MP3 format"
+            )
+    
+    # MPEG files have similar structure to MP3
+    elif file_ext == ".mpeg":
+        # MPEG frame sync
+        has_mpeg_sync = file_bytes[0] == 0xFF and (file_bytes[1] & 0xE0) == 0xE0
+        if not has_mpeg_sync:
+            raise HTTPException(
+                status_code=400,
+                detail="File content does not match MPEG format"
+            )
+
+
+def validate_image_file(file_bytes: bytes, filename: str) -> None:
+    """Validate image file extension and content using Pillow
+    
+    Requirements: 23.2, 23.4, 23.5
+    
+    Args:
+        file_bytes: File content as bytes
+        filename: Original filename
+        
+    Raises:
+        HTTPException: If validation fails
+    """
+    # Validate file extension
+    allowed_extensions = {".jpg", ".jpeg", ".png"}
+    file_ext = os.path.splitext(filename)[1].lower()
+    if file_ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid image file extension. Allowed: {', '.join(allowed_extensions)}"
+        )
+    
+    # Validate file content using Pillow
+    try:
+        # Try to open the image with Pillow
+        image = Image.open(io.BytesIO(file_bytes))
+        
+        # Verify the image format matches the extension
+        image_format = image.format
+        if image_format is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Unable to determine image format"
+            )
+        
+        # Check format matches extension
+        if file_ext in [".jpg", ".jpeg"]:
+            if image_format not in ["JPEG", "JPG"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"File content does not match JPEG format (detected: {image_format})"
+                )
+        elif file_ext == ".png":
+            if image_format != "PNG":
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"File content does not match PNG format (detected: {image_format})"
+                )
+        
+        # Verify the image can be loaded (not corrupted)
+        image.verify()
+        
+    except HTTPException:
+        # Re-raise our validation errors
+        raise
+    except Exception as e:
+        # Catch any Pillow errors (corrupted images, invalid formats, etc.)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid image file: {str(e)}"
+        )
+
+
+def validate_file_size(file_bytes: bytes, max_size_mb: int = 10) -> None:
+    """Validate file size is within limits
+    
+    Requirements: 23.3, 23.5
+    
+    Args:
+        file_bytes: File content as bytes
+        max_size_mb: Maximum file size in MB
+        
+    Raises:
+        HTTPException: If file size exceeds limit
+    """
+    file_size_mb = len(file_bytes) / (1024 * 1024)
+    if file_size_mb > max_size_mb:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File size ({file_size_mb:.2f}MB) exceeds {max_size_mb}MB limit"
+        )
+
+
+# ============================================================================
+# FASTAPI APPLICATION
+# ============================================================================
+
+# Initialize configuration
+config = Config()
+logger = setup_logging()
+
+# Validate configuration on startup
+try:
+    config.validate()
+    logger.info("Configuration validated successfully")
+except ValueError as e:
+    logger.error(f"Configuration validation failed: {str(e)}")
+    sys.exit(1)
+
+# Initialize global instances
+aws_clients = AWSServiceClients(config.AWS_REGION)
+db_manager = DatabaseManager(config.get_mysql_config())
+rate_limiter = RateLimiter(config.RATE_LIMIT_PER_MINUTE)
+fir_generator = FIRGenerator(aws_clients, db_manager)
+pdf_generator = PDFGenerator()
+
+
+async def lifespan(app: FastAPI):
+    """Application lifespan manager
+
+    Handles startup and shutdown events for the application.
+
+    Startup:
+    - Validates configuration
+    - Initializes database tables
+    - Loads IPC sections from JSON file if table is empty
+    - Logs startup messages
+
+    Shutdown:
+    - Closes database connections
+    - Flushes logs to disk
+    - Logs shutdown messages
+
+    Requirements: 16.1-16.10, 25.1-25.7
+    """
+    # Startup
+    logger.info("=" * 80)
+    logger.info("AFIRGen Backend starting up...")
+    logger.info("=" * 80)
+
+    try:
+        # Configuration is already validated before this point
+        logger.info("✓ Configuration validated")
+
+        # Database tables are already initialized in DatabaseManager.__init__
+        logger.info("✓ Database tables initialized")
+
+        # Load legal sections from comprehensive KB (988 sections)
+        legal_sections_path = os.path.join(os.path.dirname(__file__), "legal_sections.json")
+        if os.path.exists(legal_sections_path):
+            db_manager.load_ipc_sections(legal_sections_path)
+            logger.info("✓ Legal sections loaded from comprehensive KB")
+        else:
+            # Fallback to old IPC sections file (24 sections)
+            ipc_json_path = os.path.join(os.path.dirname(__file__), "ipc_sections.json")
+            if os.path.exists(ipc_json_path):
+                db_manager.load_ipc_sections(ipc_json_path)
+                logger.info("✓ IPC sections loaded (fallback)")
+            else:
+                logger.warning(f"⚠ IPC sections JSON file not found: {ipc_json_path}")
+                logger.warning("  Application will continue but IPC section retrieval may not work")
+
+        # Log AWS configuration
+        logger.info(f"✓ AWS Region: {config.AWS_REGION}")
+        logger.info(f"✓ S3 Bucket: {config.S3_BUCKET_NAME}")
+        logger.info(f"✓ Bedrock Model: {config.BEDROCK_MODEL_ID}")
+
+        # Log database configuration
+        logger.info(f"✓ MySQL Host: {config.DB_HOST}:{config.DB_PORT}")
+        logger.info(f"✓ MySQL Database: {config.DB_NAME}")
+
+        logger.info("=" * 80)
+        logger.info("AFIRGen Backend startup complete - Ready to accept requests")
+        logger.info("=" * 80)
+
+    except Exception as e:
+        logger.error(f"✗ Startup failed: {str(e)}", exc_info=True)
+        raise
+
+    yield
+
+    # Shutdown
+    logger.info("=" * 80)
+    logger.info("AFIRGen Backend shutting down...")
+    logger.info("=" * 80)
+
+    try:
+        # Close database connections
+        logger.info("Closing database connections...")
+
+        # Close MySQL connection pool
+        if hasattr(db_manager, 'mysql_pool') and db_manager.mysql_pool:
+            try:
+                # Close all connections in the pool
+                # Note: mysql.connector.pooling.MySQLConnectionPool doesn't have a close_all method
+                # Connections will be closed when the pool is garbage collected
+                logger.info("✓ MySQL connection pool will be closed on exit")
+            except Exception as e:
+                logger.error(f"Error closing MySQL pool: {str(e)}")
+
+        # Close SQLite connection
+        if hasattr(db_manager, 'sqlite_conn') and db_manager.sqlite_conn:
+            try:
+                db_manager.sqlite_conn.close()
+                logger.info("✓ SQLite connection closed")
+            except Exception as e:
+                logger.error(f"Error closing SQLite connection: {str(e)}")
+
+        # Flush logs to disk
+        for handler in logger.handlers:
+            try:
+                handler.flush()
+            except Exception as e:
+                logger.error(f"Error flushing log handler: {str(e)}")
+
+        logger.info("✓ Logs flushed to disk")
+
+        logger.info("=" * 80)
+        logger.info("AFIRGen Backend shutdown complete")
+        logger.info("=" * 80)
+
+    except Exception as e:
+        logger.error(f"✗ Shutdown error: {str(e)}", exc_info=True)
+
+
+
+
+app = FastAPI(
+    title="AFIRGen Backend",
+    version="2.0.0",
+    lifespan=lifespan
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ============================================================================
+# EXCEPTION HANDLERS
+# ============================================================================
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Handle HTTP exceptions with standardized error response
+    
+    Requirements: 14.1-14.8
+    """
+    # Map status codes to error categories
+    error_messages = {
+        400: "Invalid input",
+        401: "Authentication failed",
+        429: "Rate limit exceeded",
+        500: "Service temporarily unavailable"
+    }
+    
+    error = error_messages.get(exc.status_code, "Request failed")
+    
+    # For 429 errors, include retry_after in response
+    if exc.status_code == 429:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "error": error,
+                "detail": exc.detail,
+                "status_code": exc.status_code,
+                "retry_after": 60
+            },
+            headers={"Retry-After": "60"}
+        )
+    
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": error,
+            "detail": exc.detail,
+            "status_code": exc.status_code
+        }
+    )
+
+
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError):
+    """Handle ValueError exceptions as 400 Bad Request
+    
+    Requirements: 14.3
+    """
+    logger.error(f"ValueError in request {request.url.path}: {str(exc)}")
+    return JSONResponse(
+        status_code=400,
+        content={
+            "error": "Invalid input",
+            "detail": str(exc),
+            "status_code": 400
+        }
+    )
+
+
+@app.exception_handler(TimeoutError)
+async def timeout_error_handler(request: Request, exc: TimeoutError):
+    """Handle TimeoutError exceptions as 500 Internal Server Error
+    
+    Requirements: 14.6
+    """
+    logger.error(f"TimeoutError in request {request.url.path}: {str(exc)}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Service temporarily unavailable",
+            "detail": "Request timeout. Please try again later.",
+            "status_code": 500
+        }
+    )
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """Handle all other exceptions as 500 Internal Server Error
+    
+    Requirements: 14.6, 14.7
+    """
+    # Log full error details for debugging
+    logger.error(
+        f"Unhandled exception in request {request.url.path}: {str(exc)}",
+        exc_info=True
+    )
+    
+    # Return generic error message to client (don't expose sensitive information)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal server error",
+            "detail": "An unexpected error occurred. Please try again later.",
+            "status_code": 500
+        }
+    )
+
+
+# ============================================================================
+# MIDDLEWARE
+# ============================================================================
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """Add security headers to all responses"""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'"
+    # Remove server version header (Requirement 22.6)
+    if "Server" in response.headers:
+        del response.headers["Server"]
+    return response
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    """Rate limiting middleware"""
+    # Skip rate limiting for health endpoint
+    if request.url.path == "/health":
+        return await call_next(request)
+    
+    client_ip = request.client.host
+    if not rate_limiter.is_allowed(client_ip):
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": "Rate limit exceeded",
+                "detail": "Maximum 100 requests per minute",
+                "retry_after": 60
+            },
+            headers={"Retry-After": "60"}
+        )
+    
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def api_key_authentication_middleware(request: Request, call_next):
+    """API key authentication middleware
+    
+    Verifies X-API-Key header matches configured API_KEY for all endpoints
+    except /health. Returns HTTP 401 for invalid or missing API key.
+    
+    Requirements: 15.10
+    """
+    # Skip authentication for health endpoint
+    if request.url.path == "/health":
+        return await call_next(request)
+    
+    # Get API key from header
+    api_key = request.headers.get("x-api-key")
+    
+    # Verify API key
+    if not api_key or api_key != config.API_KEY:
+        return JSONResponse(
+            status_code=401,
+            content={
+                "error": "Authentication failed",
+                "detail": "Invalid or missing API key"
+            }
+        )
+    
+    return await call_next(request)
+
+
+# ============================================================================
+# API ENDPOINTS
+# ============================================================================
+
+@app.post("/process", response_model=ProcessResponse)
+async def process_complaint(
+    request: ProcessRequest,
+    file: Optional[UploadFile] = File(None)
+):
+    """Process complaint and generate FIR
+    
+    Accepts text, audio, or image inputs and starts the FIR generation workflow.
+    Returns immediately with session_id for status polling.
+    
+    Requirements: 15.1-15.3, 23.1-23.6
+    """
+    # Validate input based on input_type
+    if request.input_type == "text":
+        if not request.text or not request.text.strip():
+            raise HTTPException(status_code=400, detail="Text input is required for input_type 'text'")
+    elif request.input_type in ["audio", "image"]:
+        if not file:
+            raise HTTPException(status_code=400, detail=f"File upload is required for input_type '{request.input_type}'")
+        
+        # Read file bytes once
+        file_bytes = await file.read()
+        
+        # Validate file size first (Requirement 23.3)
+        validate_file_size(file_bytes, config.MAX_FILE_SIZE_MB)
+        
+        # Validate file extension and content (Requirements 23.1, 23.2, 23.4)
+        if request.input_type == "audio":
+            validate_audio_file(file_bytes, file.filename)
+        elif request.input_type == "image":
+            validate_image_file(file_bytes, file.filename)
+        
+        # Store file_bytes for later use in background task
+        # Reset file pointer is not needed since we already have the bytes
+    
+    # Generate unique session ID
+    session_id = str(uuid.uuid4())
+    
+    # Create session in database
+    try:
+        db_manager.create_session(session_id)
+        logger.info(f"Created session {session_id} for input_type {request.input_type}")
+    except Exception as e:
+        logger.error(f"Failed to create session: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create session")
+    
+    # Start async FIR generation workflow in background
+    async def generate_fir_async():
+        """Background task to generate FIR"""
+        try:
+            if request.input_type == "text":
+                # Generate FIR from text
+                result = fir_generator.generate_from_text(request.text, session_id)
+            elif request.input_type == "audio":
+                # Use file_bytes from outer scope
+                # Generate FIR from audio
+                result = fir_generator.generate_from_audio(
+                    file_bytes, 
+                    request.language, 
+                    session_id
+                )
+            elif request.input_type == "image":
+                # Use file_bytes from outer scope
+                # Generate FIR from image
+                result = fir_generator.generate_from_image(file_bytes, session_id)
+            
+            logger.info(f"FIR generation completed for session {session_id}: {result.get('fir_number')}")
+        except Exception as e:
+            logger.error(f"FIR generation failed for session {session_id}: {str(e)}", exc_info=True)
+            # Update session with error
+            try:
+                db_manager.update_session(session_id, {
+                    "status": "failed",
+                    "error": str(e)
+                })
+            except Exception as update_error:
+                logger.error(f"Failed to update session with error: {str(update_error)}")
+    
+    # Start background task (fire and forget)
+    asyncio.create_task(generate_fir_async())
+    
+    # Return immediately with session_id
+    return ProcessResponse(
+        session_id=session_id,
+        status="processing",
+        message="FIR generation started. Use session_id to poll for status."
+    )
+
+
+@app.get("/session/{session_id}", response_model=SessionResponse)
+async def get_session(
+    session_id: str
+):
+    """Get session status and data
+    
+    Retrieves current session status and all available data including
+    transcript, summary, violations, FIR content, and FIR number.
+    
+    Requirements: 15.4-15.5
+    """
+    # Retrieve session from SQLite
+    try:
+        session_data = db_manager.get_session(session_id)
+        
+        if not session_data:
+            raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
+        
+        # Return session data
+        return SessionResponse(
+            session_id=session_data['session_id'],
+            status=session_data['status'],
+            transcript=session_data.get('transcript'),
+            summary=session_data.get('summary'),
+            violations=session_data.get('violations'),
+            fir_content=session_data.get('fir_content'),
+            fir_number=session_data.get('fir_number'),
+            error=session_data.get('error')
+        )
+    
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Failed to retrieve session {session_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve session data")
+
+
+@app.post("/authenticate", response_model=AuthenticateResponse)
+async def authenticate_fir(
+    request: AuthenticateRequest
+):
+    """Finalize FIR and generate PDF
+    
+    Retrieves FIR from session, generates PDF with signatures, uploads to S3,
+    and updates FIR status to "finalized" in MySQL.
+    
+    Requirements: 15.6
+    """
+    try:
+        # Retrieve session data
+        session_data = db_manager.get_session(request.session_id)
+        
+        if not session_data:
+            raise HTTPException(status_code=404, detail=f"Session not found: {request.session_id}")
+        
+        # Check if session is completed
+        if session_data['status'] != 'completed':
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Session is not completed. Current status: {session_data['status']}"
+            )
+        
+        # Get FIR content and number from session
+        fir_content = session_data.get('fir_content')
+        fir_number = session_data.get('fir_number')
+        
+        if not fir_content or not fir_number:
+            raise HTTPException(
+                status_code=400, 
+                detail="FIR content or number not found in session"
+            )
+        
+        # Add signatures to FIR content
+        fir_content['complainant_signature'] = request.complainant_signature
+        fir_content['investigating_officer_signature'] = request.officer_signature
+        
+        # Generate PDF with signatures
+        logger.info(f"Generating PDF for FIR {fir_number}")
+        pdf_bytes = pdf_generator.generate_fir_pdf(fir_content)
+        
+        # Upload PDF to S3
+        pdf_key = f"pdfs/{fir_number}.pdf"
+        logger.info(f"Uploading PDF to S3: {pdf_key}")
+        pdf_url = aws_clients.upload_to_s3(
+            pdf_bytes, 
+            pdf_key, 
+            config.S3_BUCKET_NAME
+        )
+        
+        # Update FIR status to "finalized" in MySQL
+        logger.info(f"Updating FIR {fir_number} status to finalized")
+        db_manager.update_fir_status(fir_number, "finalized")
+        
+        logger.info(f"FIR {fir_number} finalized successfully")
+        
+        return AuthenticateResponse(
+            fir_number=fir_number,
+            pdf_url=pdf_url,
+            status="finalized"
+        )
+    
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Failed to authenticate FIR for session {request.session_id}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to finalize FIR")
+
+
+@app.get("/fir/{fir_number}", response_model=FIRResponse)
+async def get_fir(
+    fir_number: str
+):
+    """Retrieve FIR by FIR number
+    
+    Retrieves a specific FIR record from MySQL by its FIR number.
+    Returns all FIR data including content, violations, and metadata.
+    
+    Requirements: 15.7
+    """
+    try:
+        # Retrieve FIR from MySQL by fir_number
+        fir_data = db_manager.get_fir_by_number(fir_number)
+        
+        if not fir_data:
+            raise HTTPException(status_code=404, detail=f"FIR not found: {fir_number}")
+        
+        # Return FIR data
+        return FIRResponse(
+            fir_number=fir_data['fir_number'],
+            session_id=fir_data['session_id'],
+            complaint_text=fir_data['complaint_text'],
+            fir_content=fir_data['fir_content'],
+            violations_json=fir_data['violations_json'],
+            status=fir_data['status'],
+            created_at=fir_data['created_at']
+        )
+    
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Failed to retrieve FIR {fir_number}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve FIR")
+
+
+@app.get("/firs", response_model=FIRListResponse)
+async def list_firs(
+    limit: int = Query(default=20, ge=1, le=100, description="Number of FIRs to return (max 100)"),
+    offset: int = Query(default=0, ge=0, description="Number of FIRs to skip")
+):
+    """List all FIRs with pagination
+    
+    Retrieves a paginated list of FIR records from MySQL.
+    Returns FIR data with pagination metadata (total count, limit, offset).
+    
+    Requirements: 15.9
+    """
+    try:
+        # Retrieve FIRs from MySQL with pagination
+        firs_data = db_manager.list_firs(limit=limit, offset=offset)
+        
+        # Convert to FIRResponse models
+        firs = [
+            FIRResponse(
+                fir_number=fir['fir_number'],
+                session_id=fir['session_id'],
+                complaint_text=fir['complaint_text'],
+                fir_content=fir['fir_content'],
+                violations_json=fir['violations_json'],
+                status=fir['status'],
+                created_at=fir['created_at']
+            )
+            for fir in firs_data['firs']
+        ]
+        
+        # Return paginated response
+        return FIRListResponse(
+            firs=firs,
+            total=firs_data['total'],
+            limit=limit,
+            offset=offset
+        )
+    
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Failed to list FIRs: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to list FIRs")
+
+
+@app.get("/health", response_model=HealthResponse)
+async def health_check():
+    """Health check endpoint"""
+    checks = {
+        "mysql": False,
+        "bedrock": False
+    }
+    
+    # Check MySQL
+    try:
+        conn = db_manager.mysql_pool.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        cursor.fetchone()
+        cursor.close()
+        conn.close()
+        checks["mysql"] = True
+    except Exception as e:
+        logger.error(f"MySQL health check failed: {str(e)}")
+    
+    # Check Bedrock
+    try:
+        # Simple check - list models
+        bedrock = boto3.client('bedrock', region_name=config.AWS_REGION)
+        bedrock.list_foundation_models()
+        checks["bedrock"] = True
+    except Exception as e:
+        logger.error(f"Bedrock health check failed: {str(e)}")
+    
+    status = "healthy" if all(checks.values()) else "unhealthy"
+    
+    return HealthResponse(
+        status=status,
+        checks=checks,
+        timestamp=datetime.utcnow().isoformat() + "Z"
+    )
+
+
+# ============================================================================
+# MAIN
+# ============================================================================
 if __name__ == "__main__":
-    uvicorn.run("fir_pipeline_production_ready:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
+    uvicorn.run(app, host="0.0.0.0", port=8000)
