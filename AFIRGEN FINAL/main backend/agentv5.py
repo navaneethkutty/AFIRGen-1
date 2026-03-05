@@ -2229,7 +2229,9 @@ async def api_key_authentication_middleware(request: Request, call_next):
 
 @app.post("/process", response_model=ProcessResponse)
 async def process_complaint(
-    request: ProcessRequest,
+    input_type: str = Form(...),
+    text: Optional[str] = Form(None),
+    language: Optional[str] = Form("en-IN"),
     file: Optional[UploadFile] = File(None)
 ):
     """Process complaint and generate FIR
@@ -2239,13 +2241,17 @@ async def process_complaint(
     
     Requirements: 15.1-15.3, 23.1-23.6
     """
+    # Validate input_type
+    if input_type not in ["text", "audio", "image"]:
+        raise HTTPException(status_code=400, detail="input_type must be 'text', 'audio', or 'image'")
+    
     # Validate input based on input_type
-    if request.input_type == "text":
-        if not request.text or not request.text.strip():
+    if input_type == "text":
+        if not text or not text.strip():
             raise HTTPException(status_code=400, detail="Text input is required for input_type 'text'")
-    elif request.input_type in ["audio", "image"]:
+    elif input_type in ["audio", "image"]:
         if not file:
-            raise HTTPException(status_code=400, detail=f"File upload is required for input_type '{request.input_type}'")
+            raise HTTPException(status_code=400, detail=f"File upload is required for input_type '{input_type}'")
         
         # Read file bytes once
         file_bytes = await file.read()
@@ -2254,9 +2260,9 @@ async def process_complaint(
         validate_file_size(file_bytes, config.MAX_FILE_SIZE_MB)
         
         # Validate file extension and content (Requirements 23.1, 23.2, 23.4)
-        if request.input_type == "audio":
+        if input_type == "audio":
             validate_audio_file(file_bytes, file.filename)
-        elif request.input_type == "image":
+        elif input_type == "image":
             validate_image_file(file_bytes, file.filename)
         
         # Store file_bytes for later use in background task
@@ -2268,7 +2274,7 @@ async def process_complaint(
     # Create session in database
     try:
         db_manager.create_session(session_id)
-        logger.info(f"Created session {session_id} for input_type {request.input_type}")
+        logger.info(f"Created session {session_id} for input_type {input_type}")
     except Exception as e:
         logger.error(f"Failed to create session: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to create session")
@@ -2277,18 +2283,18 @@ async def process_complaint(
     async def generate_fir_async():
         """Background task to generate FIR"""
         try:
-            if request.input_type == "text":
+            if input_type == "text":
                 # Generate FIR from text
-                result = fir_generator.generate_from_text(request.text, session_id)
-            elif request.input_type == "audio":
+                result = fir_generator.generate_from_text(text, session_id)
+            elif input_type == "audio":
                 # Use file_bytes from outer scope
                 # Generate FIR from audio
                 result = fir_generator.generate_from_audio(
                     file_bytes, 
-                    request.language, 
+                    language, 
                     session_id
                 )
-            elif request.input_type == "image":
+            elif input_type == "image":
                 # Use file_bytes from outer scope
                 # Generate FIR from image
                 result = fir_generator.generate_from_image(file_bytes, session_id)
