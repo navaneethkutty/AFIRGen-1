@@ -60,7 +60,7 @@ class Config:
     S3_BUCKET_NAME: str = os.getenv("S3_BUCKET_NAME", "")
     BEDROCK_MODEL_ID: str = os.getenv(
         "BEDROCK_MODEL_ID",
-        "anthropic.claude-sonnet-4-6"  # Claude Sonnet 4.6 (requires use case approval)
+        "anthropic.claude-3-5-haiku-20241022-v1:0"  # Claude 3.5 Haiku (no marketplace needed)
     )
     
     # Database Configuration
