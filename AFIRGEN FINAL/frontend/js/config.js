@@ -13,7 +13,7 @@ window.ENV = {
   // API Base URL - MUST be configured for production deployment
   // Examples:
   // - Development: 'http://localhost:8000'
-  // - Production: 'https://api.yourdomain.com'
+  // - EC2 Production: 'http://98.86.30.145:8000'
   // - AWS ALB: 'https://afirgen-alb-123456.us-east-1.elb.amazonaws.com'
   API_BASE_URL: 'http://localhost:8000',
 

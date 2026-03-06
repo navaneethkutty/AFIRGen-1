@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backend Connectivity Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 3px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #apiUrl {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Backend Connectivity Test</h1>
+    
+    <div class="test-section">
+        <h2>Configuration</h2>
+        <label for="apiUrl">API Base URL:</label>
+        <input type="text" id="apiUrl" value="http://localhost:8000" placeholder="http://localhost:8000">
+        <button onclick="updateApiUrl()">Update URL</button>
+        <button onclick="useLocalhost()">Use Localhost</button>
+        <button onclick="useEC2()">Use EC2 (98.86.30.145)</button>
+        <div id="currentUrl" class="test-result info"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Health Check</h2>
+        <button onclick="testHealth()">Test /health Endpoint</button>
+        <div id="healthResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>API Endpoints</h2>
+        <button onclick="testAllEndpoints()">Test All Endpoints</button>
+        <div id="endpointsResult"></div>
+    </div>
+
+    <script>
+        let API_BASE = 'http://localhost:8000';
+
+        function updateApiUrl() {
+            API_BASE = document.getElementById('apiUrl').value;
+            showCurrentUrl();
+        }
+
+        function useLocalhost() {
+            API_BASE = 'http://localhost:8000';
+            document.getElementById('apiUrl').value = API_BASE;
+            showCurrentUrl();
+        }
+
+        function useEC2() {
+            API_BASE = 'http://98.86.30.145:8000';
+            document.getElementById('apiUrl').value = API_BASE;
+            showCurrentUrl();
+        }
+
+        function showCurrentUrl() {
+            document.getElementById('currentUrl').innerHTML = `<strong>Current API URL:</strong> ${API_BASE}`;
+        }
+
+        async function testHealth() {
+            const resultDiv = document.getElementById('healthResult');
+            resultDiv.innerHTML = '<div class="test-result info">Testing...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="test-result success">
+                            <strong>✓ Health Check Passed</strong><br>
+                            Status: ${response.status}<br>
+                            Response: <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="test-result error">
+                            <strong>✗ Health Check Failed</strong><br>
+                            Status: ${response.status}<br>
+                            Response: <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="test-result error">
+                        <strong>✗ Connection Error</strong><br>
+                        ${error.message}<br>
+                        <small>Make sure the backend is running and CORS is enabled</small>
+                    </div>
+                `;
+            }
+        }
+
+        async function testAllEndpoints() {
+            const resultDiv = document.getElementById('endpointsResult');
+            resultDiv.innerHTML = '<div class="test-result info">Testing all endpoints...</div>';
+
+            const endpoints = [
+                { method: 'GET', path: '/health', description: 'Health Check' },
+                { method: 'GET', path: '/session/test-session-id/status', description: 'Session Status (should fail without valid session)' },
+                { method: 'GET', path: '/fir/test-fir-number', description: 'Get FIR (should fail without valid FIR)' }
+            ];
+
+            let results = '<h3>Endpoint Test Results:</h3>';
+
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await fetch(`${API_BASE}${endpoint.path}`, {
+                        method: endpoint.method
+                    });
+
+                    const contentType = response.headers.get('content-type');
+                    let data;
+                    if (contentType && contentType.includes('application/json')) {
+                        data = await response.json();
+                    } else {
+                        data = await response.text();
+                    }
+
+                    const statusClass = response.ok ? 'success' : 'info';
+                    results += `
+                        <div class="test-result ${statusClass}">
+                            <strong>${endpoint.method} ${endpoint.path}</strong><br>
+                            ${endpoint.description}<br>
+                            Status: ${response.status} ${response.statusText}<br>
+                            Response: <pre>${typeof data === 'object' ? JSON.stringify(data, null, 2) : data}</pre>
+                        </div>
+                    `;
+                } catch (error) {
+                    results += `
+                        <div class="test-result error">
+                            <strong>${endpoint.method} ${endpoint.path}</strong><br>
+                            ${endpoint.description}<br>
+                            Error: ${error.message}
+                        </div>
+                    `;
+                }
+            }
+
+            resultDiv.innerHTML = results;
+        }
+
+        // Initialize
+        showCurrentUrl();
+    </script>
+</body>
+</html>

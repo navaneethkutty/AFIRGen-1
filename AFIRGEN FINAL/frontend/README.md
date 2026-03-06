@@ -97,6 +97,34 @@ npm start
 
 The application will be available at `http://localhost:8080`
 
+### Backend Configuration
+
+The frontend needs to connect to the AFIRGen backend API. See [FRONTEND-CONFIGURATION-GUIDE.md](FRONTEND-CONFIGURATION-GUIDE.md) for detailed configuration instructions.
+
+#### Quick Setup for Local Development:
+```bash
+# Backend should be running on http://localhost:8000
+# Frontend config is already set to localhost by default
+npm start
+```
+
+#### Quick Setup for EC2 Production:
+```bash
+# Switch to EC2 configuration
+./deploy-to-ec2.sh
+
+# Optionally set API key
+export API_KEY='your-api-key'
+./deploy-to-ec2.sh
+```
+
+#### Test Backend Connectivity:
+Open `test-backend-connectivity.html` in your browser to verify the frontend can reach the backend.
+
+For more details, see:
+- [Frontend Configuration Guide](FRONTEND-CONFIGURATION-GUIDE.md)
+- [Backend README](../main%20backend/README.md)
+
 ## Build Instructions
 
 ### Development Build
