@@ -13,12 +13,36 @@ from functools import lru_cache
 
 # Infrastructure dependencies
 from infrastructure.database import DatabasePool, create_database_pool
-from infrastructure.cache_manager import CacheManager, get_cache_manager
+# Cache manager removed - not needed for AWS Bedrock deployment
+# from infrastructure.cache_manager import CacheManager, get_cache_manager
 from infrastructure.logging import get_logger
 from infrastructure.metrics import MetricsCollector
 from infrastructure.connection_retry import DatabaseConnectionRetry
-from infrastructure.circuit_breaker import CircuitBreaker
+# Circuit breaker removed - not needed for AWS Bedrock deployment
+# from infrastructure.circuit_breaker import CircuitBreaker
 from infrastructure.retry_handler import RetryHandler
+
+# Stub classes for removed infrastructure
+class CacheManager:
+    """Stub class - cache manager removed for AWS Bedrock deployment."""
+    def __init__(self, *args, **kwargs):
+        pass
+    def ping(self):
+        return True
+    def get(self, key):
+        return None
+    def set(self, key, value, ttl=None):
+        pass
+    def delete(self, key):
+        pass
+
+class CircuitBreaker:
+    """Stub class - circuit breaker removed for AWS Bedrock deployment."""
+    def __init__(self, *args, **kwargs):
+        pass
+    def call(self, func, *args, **kwargs):
+        return func(*args, **kwargs)
+
 
 # Repository dependencies
 from repositories.fir_repository import FIRRepository
@@ -35,7 +59,8 @@ except ImportError:
 
 # Global instances (initialized during app startup)
 _db_pool: Optional[DatabasePool] = None
-_cache_manager: Optional[CacheManager] = None
+# Cache manager stub - functionality removed for AWS Bedrock deployment
+_cache_manager: Optional[CacheManager] = CacheManager()
 _logger = get_logger(__name__)
 
 
@@ -67,23 +92,19 @@ def get_database_pool() -> DatabasePool:
 
 def get_cache() -> CacheManager:
     """
-    Get cache manager instance.
+    Get cache manager instance (stub).
     
-    This should be initialized during app startup via init_dependencies().
+    Cache functionality removed for AWS Bedrock deployment.
+    Returns a stub instance for backward compatibility.
     
     Returns:
-        CacheManager instance
-        
-    Raises:
-        RuntimeError: If cache manager is not initialized
+        CacheManager stub instance
         
     Validates: Requirements 8.2
     """
     global _cache_manager
     if _cache_manager is None:
-        raise RuntimeError(
-            "Cache manager not initialized. Call init_dependencies() during app startup."
-        )
+        _cache_manager = CacheManager()
     return _cache_manager
 
 

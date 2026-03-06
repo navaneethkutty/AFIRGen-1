@@ -20,7 +20,8 @@ from infrastructure.input_validation import (
     validate_session_id_param,
     validate_fir_number_param,
 )
-from infrastructure.xray_tracing import trace_subsegment, add_trace_annotation
+# AWS X-Ray tracing removed - not needed for AWS Bedrock deployment
+# from infrastructure.xray_tracing import trace_subsegment, add_trace_annotation
 from infrastructure.logging import get_logger
 from api.dependencies import get_session_service
 
@@ -31,7 +32,7 @@ router = APIRouter(prefix="/api/v1", tags=["fir"])
 
 
 @router.post("/process", response_model=FIRResp)
-@trace_subsegment("process_fir_request")
+# X-Ray tracing removed: @trace_subsegment("process_fir_request")
 async def process_endpoint(
     audio: Optional[UploadFile] = File(None),
     image: Optional[UploadFile] = File(None),
@@ -43,15 +44,15 @@ async def process_endpoint(
     
     Business logic is delegated to SessionService (injected via dependency).
     """
-    # Add X-Ray annotations
-    add_trace_annotation("endpoint", "/process")
-    add_trace_annotation("has_audio", bool(audio))
-    add_trace_annotation("has_image", bool(image))
-    add_trace_annotation("has_text", bool(text))
+    # X-Ray annotations removed - not needed for AWS Bedrock deployment
+    # add_trace_annotation("endpoint", "/process")
+    # add_trace_annotation("has_audio", bool(audio))
+    # add_trace_annotation("has_image", bool(image))
+    # add_trace_annotation("has_text", bool(text))
     
     # Validate that at least one input is provided
     if not any([audio, image, text]):
-        add_trace_annotation("error", "no_input")
+        # add_trace_annotation("error", "no_input")
         raise HTTPException(
             status_code=400,
             detail="No input provided. Please provide audio, image, or text."

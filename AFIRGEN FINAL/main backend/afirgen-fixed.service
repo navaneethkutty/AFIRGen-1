@@ -1,0 +1,26 @@
+[Unit]
+Description=AFIRGen Backend Service - Automated FIR Generation
+Documentation=https://github.com/your-repo/afirgen
+After=network.target
+
+[Service]
+Type=simple
+User=ssm-user
+WorkingDirectory=/opt/afirgen-backend/AFIRGEN FINAL/main backend
+Environment="AWS_REGION=us-east-1"
+Environment="S3_BUCKET_NAME=afirgen-storage-bucket"
+Environment="BEDROCK_MODEL_ID=anthropic.claude-3-sonnet-20240229-v1:0"
+Environment="DB_HOST=afirgen-free-tier-mysql.ceniwmoioy4y.us-east-1.rds.amazonaws.com"
+Environment="DB_PORT=3306"
+Environment="DB_USER=admin"
+Environment="DB_PASSWORD=Prathiush12."
+Environment="DB_NAME=afirgen"
+Environment="API_KEY=dev-test-key-12345678901234567890123456789012"
+ExecStart=/opt/afirgen-backend/AFIRGEN FINAL/main backend/venv/bin/uvicorn agentv5:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

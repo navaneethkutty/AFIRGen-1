@@ -10,9 +10,10 @@ from fastapi import APIRouter, Depends
 
 from infrastructure.cloudwatch_metrics import record_health_check
 from infrastructure.logging import get_logger
-from infrastructure.cache_manager import CacheManager
+# Cache manager removed - using stub from dependencies
+# from infrastructure.cache_manager import CacheManager
 from infrastructure.database import DatabasePool
-from api.dependencies import get_cache, get_database_pool
+from api.dependencies import get_cache, get_database_pool, CacheManager
 
 # Initialize logger
 log = get_logger(__name__)

@@ -10,7 +10,23 @@ from typing import Optional
 import time
 import psutil
 from .config import config
-from .alerting import alert_manager, MetricType
+# Alerting removed - not needed for AWS Bedrock deployment
+# from .alerting import alert_manager, MetricType
+
+# Stub for removed MetricType
+class MetricType:
+    API_REQUEST = "api_request"
+    DATABASE_QUERY = "database_query"
+    CACHE_OPERATION = "cache_operation"
+
+# Stub for removed alert_manager
+class AlertManagerStub:
+    def check_threshold(self, *args, **kwargs):
+        pass
+    def alert(self, *args, **kwargs):
+        pass
+
+alert_manager = AlertManagerStub()
 
 
 # API Metrics
