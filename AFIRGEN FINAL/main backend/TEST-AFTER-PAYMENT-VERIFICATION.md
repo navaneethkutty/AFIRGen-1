@@ -10,7 +10,7 @@
 
 ## What's Configured
 
-- **Model**: Amazon Nova Pro (`amazon.nova-pro-v1:0`)
+- **Model**: Claude Sonnet 4.6 (`anthropic.claude-sonnet-4-6`)
 - **EC2 Instance**: i-02ecca1d375ab2cec (18.206.148.182)
 - **Database**: MySQL RDS + SQLite sessions
 - **Legal KB**: 988 sections loaded
@@ -20,7 +20,7 @@
 Run this command:
 
 ```powershell
-aws bedrock list-foundation-models --region us-east-1 --by-provider amazon --query "modelSummaries[?contains(modelId, 'nova-pro')].{ModelId:modelId, Status:modelLifecycle.status}" --output table
+aws bedrock list-foundation-models --region us-east-1 --by-provider anthropic --query "modelSummaries[?contains(modelId, 'claude-sonnet-4-6')].{ModelId:modelId, Status:modelLifecycle.status}" --output table
 ```
 
 Look for `Status: ACTIVE` (not just model access granted in console).
