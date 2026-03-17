@@ -563,8 +563,8 @@ function initializeApp() {
   // Load initial FIR list
   updateFIRList();
 
-  // Register service worker for offline capability
-  registerServiceWorker();
+  // Service worker disabled to prevent caching issues
+  // registerServiceWorker();
 }
 
 /**
