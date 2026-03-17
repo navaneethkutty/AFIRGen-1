@@ -144,6 +144,11 @@ async function handleGenerate() {
       window.showProgress(mainContent, progress, `Uploading files... ${Math.round(progress)}%`);
     });
 
+    // Check if data is valid
+    if (!data || !data.session_id) {
+      throw new Error('Invalid response from server');
+    }
+
     // Hide upload progress, show processing message
     window.hideLoading(loadingId);
     const processingId = window.showLoading(mainContent, 'Processing FIR generation...');
