@@ -2235,6 +2235,10 @@ async def api_key_authentication_middleware(request: Request, call_next):
     if request.url.path == "/health":
         return await call_next(request)
     
+    # Skip authentication for OPTIONS requests (CORS preflight)
+    if request.method == "OPTIONS":
+        return await call_next(request)
+    
     # Get API key from header
     api_key = request.headers.get("x-api-key")
     
