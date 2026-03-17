@@ -146,7 +146,7 @@ class AWSServiceClients:
         self.logger = logging.getLogger(__name__)
     
     def invoke_claude(self, prompt: str, max_tokens: int = 4096) -> str:
-        """Invoke Claude 3 Sonnet via Bedrock with retry logic and exponential backoff"""
+        """Invoke Claude via Bedrock Native API with retry logic and exponential backoff"""
         retries = 0
         last_error = None
         
@@ -154,26 +154,34 @@ class AWSServiceClients:
             try:
                 start_time = time.time()
                 
-                body = json.dumps({
+                # Format the request using the model's native structure
+                native_request = {
                     "anthropic_version": "bedrock-2023-05-31",
                     "max_tokens": max_tokens,
+                    "temperature": 0.5,
                     "messages": [
                         {
                             "role": "user",
-                            "content": prompt
+                            "content": [{"type": "text", "text": prompt}]
                         }
                     ]
-                })
+                }
+                
+                # Convert to JSON
+                request_body = json.dumps(native_request)
                 
                 self.logger.info(f"Invoking Bedrock Claude (attempt {retries + 1}/{config.MAX_RETRIES + 1})")
                 
                 response = self.bedrock_runtime.invoke_model(
                     modelId=config.BEDROCK_MODEL_ID,
-                    body=body
+                    body=request_body
                 )
                 
-                response_body = json.loads(response['body'].read())
-                result = response_body['content'][0]['text']
+                # Decode the response body
+                model_response = json.loads(response["body"].read())
+                
+                # Extract response text
+                result = model_response["content"][0]["text"]
                 
                 duration = time.time() - start_time
                 self.logger.info(f"Bedrock invocation successful (duration: {duration:.2f}s)")
@@ -1294,19 +1302,39 @@ IMPORTANT:
 - Use "None" for empty lists
 - Extract information from the narrative
 - Use the provided IPC sections for legal_sections field
-- Return only valid JSON
+- Return ONLY the JSON object, no markdown, no explanation
 
 Return the complete JSON object."""
         
         response = self.aws.invoke_claude(prompt, max_tokens=8192)
         
+        # Log the raw response for debugging
+        self.logger.info(f"Raw FIR response length: {len(response)} chars")
+        self.logger.debug(f"Raw FIR response: {response[:500]}...")
+        
+        # Extract JSON from response (handle markdown code blocks)
+        json_str = response.strip()
+        
+        # Remove markdown code blocks if present
+        if json_str.startswith("```"):
+            # Find the actual JSON content between ```json and ```
+            import re
+            match = re.search(r'```(?:json)?\s*(\{.*\})\s*```', json_str, re.DOTALL)
+            if match:
+                json_str = match.group(1)
+            else:
+                # Try to find JSON between any ``` markers
+                json_str = json_str.split("```")[1] if "```" in json_str else json_str
+                json_str = json_str.replace("json", "", 1).strip()
+        
         # Parse JSON response
         try:
-            fir_data = json.loads(response)
+            fir_data = json.loads(json_str)
             self.logger.info("Complete FIR generated successfully")
             return fir_data
         except json.JSONDecodeError as e:
             self.logger.error(f"Failed to parse FIR JSON: {str(e)}")
+            self.logger.error(f"Attempted to parse: {json_str[:500]}...")
             raise ValueError(f"Failed to generate valid FIR: {str(e)}")
     
     def _validate_fir_fields(self, fir_data: dict) -> bool:
